@@ -134,8 +134,11 @@ echo
 echo "Teste manual:"
 echo "  ${INSTALL_PATH} expira empresa.com.br"
 echo
-echo "Teste pelo agente Zabbix:"
+echo "Teste pelo agente Zabbix legado:"
 echo "  zabbix_agentd -t 'domain.whois[expira,empresa.com.br]'"
+echo
+echo "Teste pelo Zabbix Agent 2:"
+echo "  zabbix_agent2 -t 'domain.whois[expira,empresa.com.br]'"
 echo
 echo "Observação:"
 echo "  Para muitos domínios em carga fria, considere ajustar Timeout no Zabbix Agent para 30 ou 60 segundos."
