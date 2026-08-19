@@ -446,7 +446,7 @@ check_domain() {
 
 if ! validate_metric "$METRIC"; then
     print_null
-    exit 1
+    exit 0
 fi
 
 check_domain "$METRIC" "$DOMAIN"
