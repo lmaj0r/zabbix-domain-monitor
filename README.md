@@ -42,24 +42,24 @@ sudo bash install.sh
 5. Reinicia o serviço do Zabbix Agent quando disponível.
 
 
-## Métricas disponíveis
-Métrica	 = Descrição  
-nome = Nome do domínio  
-status = Status do domínio  
-dono = Proprietário ou organização responsável  
-donocnpj = Identificador do proprietário, quando disponível  
-dononome = Nome do responsável  
-pais = País do registro  
-donoregistro = Código de contato do proprietário  
-suporteregistro	Código de contato técnico  
-dns1 = Primeiro servidor DNS  
-dns2 = Segundo servidor DNS  
-dns3 = Terceiro servidor DNS  
-dns4 = Quarto servidor DNS  
-criado = Data de criação do domínio  
-criadonumero = Número associado ao campo de criação, quando disponível  
-alterado = Data da última alteração  
-expira = Data de expiração do domínio  
+## Métricas disponíveis]
+\
+[nome] = Nome do domínio  
+[status] = Status do domínio  
+[dono] = Proprietário ou organização responsável  
+[donocnpj] = Identificador do proprietário, quando disponível  
+[dononome] = Nome do responsável  
+[pais] = País do registro  
+[donoregistro] = Código de contato do proprietário  
+[suporteregistro]	Código de contato técnico  
+[dns1] = Primeiro servidor DNS  
+[dns2] = Segundo servidor DNS  
+[dns3] = Terceiro servidor DNS  
+[dns4] = Quarto servidor DNS  
+[criado] = Data de criação do domínio  
+[criadonumero] = Número associado ao campo de criação, quando disponível  
+[alterado] = Data da última alteração  
+[expira] = Data de expiração do domínio  
 
 
 
