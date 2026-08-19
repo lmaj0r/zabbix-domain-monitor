@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 METRIC="${1:-}"
-DOMAIN_RAW="${2:-}"
+DOMAIN="${2:-}"
 
 CACHE_DIR="/tmp/zabbix_domain_cache"
 CACHE_TTL=300
@@ -14,6 +14,19 @@ GLOBAL_TIMER="${CACHE_DIR}/.ratelimit_timer"
 
 print_null() {
     echo "null"
+}
+
+validate_metric() {
+    local metric="$1"
+
+    case "$metric" in
+        nome|status|dono|donocnpj|dononome|pais|donoregistro|suporteregistro|dns1|dns2|dns3|dns4|criado|criadonumero|alterado|expira)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
 }
 
 normalize_domain() {
@@ -431,4 +444,9 @@ check_domain() {
     get_domain_info "$domain" "$attr"
 }
 
-check_domain "$METRIC" "$DOMAIN_RAW"
+if ! validate_metric "$METRIC"; then
+    print_null
+    exit 1
+fi
+
+check_domain "$METRIC" "$DOMAIN"
