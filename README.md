@@ -29,11 +29,11 @@ sudo bash install.sh
 
 
 
-zabbix-domain-monitor/
-├── README.md
-├── install.sh
-├── zabbix_domain_monitor.sh
-├── zabbix_agentd.d/
-│   └── userparameter_domain.conf
-└── zabbix_template/
-    └── template_domain_monitor.yaml
+zabbix-domain-monitor \
+├── README.md \
+├── install.sh \
+├── zabbix_domain_monitor.sh\
+├── zabbix_agentd.d/ \
+│   └── userparameter_domain.conf \
+└── zabbix_template/ \
+    └── template_domain_monitor.yaml \
