@@ -66,7 +66,7 @@ O instalador realiza automaticamente as seguintes ações:
 3. Copia o script principal para:
 
 ```text
-/usr/local/bin/zabbix_domain_monitor.sh
+/etc/zabbix/scripts/zabbix_domain_monitor.sh
 ```
 
 4. Ajusta permissões de execução.
@@ -93,20 +93,20 @@ zabbix_domain_monitor.sh <atributo> <dominio>
 Exemplo consultando a data de expiração:
 
 ```bash
-/usr/local/bin/zabbix_domain_monitor.sh expira empresa.com.br
+/etc/zabbix/scripts/zabbix_domain_monitor.sh expira empresa.com.br
 ```
 
 Exemplo consultando o status do domínio:
 
 ```bash
-/usr/local/bin/zabbix_domain_monitor.sh status empresa.com.br
+/etc/zabbix/scripts/zabbix_domain_monitor.sh status empresa.com.br
 ```
 
 Exemplo consultando servidores DNS:
 
 ```bash
-/usr/local/bin/zabbix_domain_monitor.sh dns1 empresa.com.br
-/usr/local/bin/zabbix_domain_monitor.sh dns2 empresa.com.br
+/etc/zabbix/scripts/zabbix_domain_monitor.sh dns1 empresa.com.br
+/etc/zabbix/scripts/zabbix_domain_monitor.sh dns2 empresa.com.br
 ```
 
 ---
@@ -305,7 +305,7 @@ Para validar o enfileiramento e o rate limit:
 
 ```bash
 for d in empresa.com.br exemplo.com.br registro.br zabbix.com google.com; do
-  /usr/local/bin/zabbix_domain_monitor.sh expira "$d" &
+  /etc/zabbix/scripts/zabbix_domain_monitor.sh expira "$d" &
 done
 
 wait
