@@ -248,7 +248,7 @@ zabbix_template/template_domain_monitor.yaml
 Template incluído:
 
 ```text
-BERNOULLI - Monitor de Dominios
+Monitor de Dominios
 ```
 
 Macro principal do domínio:
