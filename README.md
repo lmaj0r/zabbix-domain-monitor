@@ -43,7 +43,7 @@ O projeto foi desenvolvido em **Bash** e utiliza ferramentas nativas do Linux, c
 Clone o repositório:
 
 ```bash
-git clone https://github.com/SEU_USUARIO/zabbix-domain-monitor.git
+git clone https://github.com/lmaj0r/zabbix-domain-monitor.git
 cd zabbix-domain-monitor
 ```
 
