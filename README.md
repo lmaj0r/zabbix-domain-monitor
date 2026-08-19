@@ -27,11 +27,12 @@ sudo bash install.sh
 ```
 
 
+
+
 zabbix-domain-monitor/
 ├── README.md
 ├── install.sh
 ├── zabbix_domain_monitor.sh
-├── .gitignore
 ├── zabbix_agentd.d/
 │   └── userparameter_domain.conf
 └── zabbix_template/
