@@ -44,6 +44,8 @@ Clone o repositório:
 
 ```bash
 git clone https://github.com/lmaj0r/zabbix-domain-monitor.git
+```
+```bash
 cd zabbix-domain-monitor
 ```
 
