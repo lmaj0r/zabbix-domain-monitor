@@ -35,6 +35,7 @@ O projeto foi desenvolvido em **Bash** e utiliza ferramentas nativas do Linux, c
 
 - Linux
 - Bash
+- Git
 - `whois`
 - `flock`, disponível no pacote `util-linux`
 - Zabbix Agent ou Zabbix Agent 2
@@ -43,10 +44,14 @@ O projeto foi desenvolvido em **Bash** e utiliza ferramentas nativas do Linux, c
 
 ## Instalação
 
-Clone o repositório:
+Para instalação no servidor onde está o Zabbix Agent, recomenda-se baixar somente os arquivos necessários para execução do monitoramento.
+
+A pasta `zabbix_template` não precisa ser baixada no servidor, pois o arquivo `template_domain_monitor.yaml` deve ser baixado separadamente e importado diretamente pela interface web do Zabbix.
+
+Clone o repositório usando **sparse checkout**:
 
 ```bash
-git clone https://github.com/lmaj0r/zabbix-domain-monitor.git
+git clone --filter=blob:none --no-checkout https://github.com/lmaj0r/zabbix-domain-monitor.git
 ```
 
 Acesse o diretório do projeto:
@@ -54,6 +59,24 @@ Acesse o diretório do projeto:
 ```bash
 cd zabbix-domain-monitor
 ```
+
+Configure o Git para baixar somente os arquivos necessários para instalação:
+
+```bash
+git sparse-checkout init --no-cone
+```
+
+```bash
+git sparse-checkout set README.md install.sh zabbix_domain_monitor.sh zabbix_agentd.d/*
+```
+
+Faça o checkout dos arquivos:
+
+```bash
+git checkout main
+```
+
+Ao final, a pasta `zabbix_template` não será baixada no servidor.
 
 Antes de executar o instalador, aplique permissão de execução ao arquivo:
 
@@ -90,6 +113,30 @@ O instalador realiza automaticamente as seguintes ações:
 9. Ajusta permissões do cache.
 10. Copia o arquivo `userparameter_domain.conf` para o diretório do Zabbix Agent ou Zabbix Agent 2.
 11. Reinicia o serviço do Zabbix Agent ou Zabbix Agent 2, quando disponível.
+
+---
+
+## Instalação alternativa com clone completo
+
+Caso prefira baixar todo o repositório, incluindo a pasta do template, utilize:
+
+```bash
+git clone https://github.com/lmaj0r/zabbix-domain-monitor.git
+```
+
+```bash
+cd zabbix-domain-monitor
+```
+
+```bash
+sudo chmod +x install.sh
+```
+
+```bash
+sudo ./install.sh
+```
+
+> Observação: neste modo, a pasta `zabbix_template` também será baixada localmente. Porém, o template ainda deve ser importado manualmente pela interface web do Zabbix.
 
 ---
 
@@ -239,17 +286,62 @@ A disponibilidade dos dados depende da resposta WHOIS de cada registrador.
 
 ## Template Zabbix
 
-O template está disponível em:
+O template do Zabbix está disponível no repositório em:
 
 ```text
 zabbix_template/template_domain_monitor.yaml
 ```
+
+Esse arquivo **não precisa ser instalado no servidor do Zabbix Agent**.
+
+Ele deve ser baixado separadamente e importado diretamente pela interface web do Zabbix.
 
 Template incluído:
 
 ```text
 Monitor de Dominios
 ```
+
+### Como baixar o template
+
+Você pode baixar o arquivo diretamente pelo GitHub:
+
+```text
+https://github.com/lmaj0r/zabbix-domain-monitor/blob/main/zabbix_template/template_domain_monitor.yaml
+```
+
+Na página do arquivo, clique em:
+
+```text
+Download raw file
+```
+
+Também é possível baixar via terminal:
+
+```bash
+curl -L -o template_domain_monitor.yaml https://raw.githubusercontent.com/lmaj0r/zabbix-domain-monitor/main/zabbix_template/template_domain_monitor.yaml
+```
+
+Ou usando `wget`:
+
+```bash
+wget -O template_domain_monitor.yaml https://raw.githubusercontent.com/lmaj0r/zabbix-domain-monitor/main/zabbix_template/template_domain_monitor.yaml
+```
+
+### Como importar o template no Zabbix
+
+Acesse a interface web do Zabbix e siga o caminho:
+
+```text
+Data collection > Templates > Import
+```
+
+Em seguida:
+
+1. Selecione o arquivo `template_domain_monitor.yaml`.
+2. Clique em `Import`.
+3. Após a importação, vincule o template ao host desejado.
+4. Configure a macro `{$DOMINIO.NOME}` com o domínio que será monitorado.
 
 Macro principal do domínio:
 
@@ -383,6 +475,8 @@ zabbix-domain-monitor/
     └── template_domain_monitor.yaml
 ```
 
+> Observação: usando o método de instalação com `sparse-checkout`, a pasta `zabbix_template` não será baixada no servidor. Ela permanece disponível no GitHub apenas para download e importação manual no Zabbix.
+
 ---
 
 ## Arquivos principais
@@ -393,7 +487,7 @@ zabbix-domain-monitor/
 | `install.sh` | Instalador automático |
 | `zabbix_domain_monitor.sh` | Script principal de consulta WHOIS |
 | `zabbix_agentd.d/userparameter_domain.conf` | Configuração UserParameter do Zabbix |
-| `zabbix_template/template_domain_monitor.yaml` | Template para importação no Zabbix |
+| `zabbix_template/template_domain_monitor.yaml` | Template para importação manual no Zabbix |
 
 ---
 
