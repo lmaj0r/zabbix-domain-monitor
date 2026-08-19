@@ -44,14 +44,12 @@ O projeto foi desenvolvido em **Bash** e utiliza ferramentas nativas do Linux, c
 
 ## Instalação
 
-Para instalação no servidor onde está o Zabbix Agent, recomenda-se baixar somente os arquivos necessários para execução do monitoramento.
+Efetue a instalação no servidor onde está o Zabbix Agent.
 
-A pasta `zabbix_template` não precisa ser baixada no servidor, pois o arquivo `template_domain_monitor.yaml` deve ser baixado separadamente e importado diretamente pela interface web do Zabbix.
-
-Clone o repositório usando **sparse checkout**:
+Clone o repositório
 
 ```bash
-git clone --filter=blob:none --no-checkout https://github.com/lmaj0r/zabbix-domain-monitor.git
+git clone https://github.com/lmaj0r/zabbix-domain-monitor.git
 ```
 
 Acesse o diretório do projeto:
