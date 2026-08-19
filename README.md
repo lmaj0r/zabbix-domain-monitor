@@ -34,6 +34,6 @@ zabbix-domain-monitor \
 ├── install.sh \
 ├── zabbix_domain_monitor.sh\
 ├── zabbix_agentd.d/ \
-│         └── userparameter_domain.conf \
+│            └── userparameter_domain.conf \
 └── zabbix_template/ \
     └── template_domain_monitor.yaml \
