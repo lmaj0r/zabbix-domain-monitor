@@ -5,8 +5,8 @@ zabbix_export:
       name: Templates/Applications
   templates:
     - uuid: 18e24065bf164f479da0a4735136f083
-      template: 'BERNOULLI - Monitor de Dominios'
-      name: 'BERNOULLI - Monitor de Dominios'
+      template: 'Monitor de Dominios'
+      name: 'Monitor de Dominios'
       description: 'Template para monitorar domínios retornando diversas informações na pesquisa de whois.'
       groups:
         - name: Templates/Applications
@@ -120,9 +120,9 @@ zabbix_export:
               value: Domínio
           triggers:
             - uuid: 892949693bc847289485039cf6bd42a5
-              expression: '(change(/BERNOULLI - Monitor de Dominios/domain.dns1[{$DOMINIO.NOME}])=1 and length(last(/BERNOULLI - Monitor de Dominios/domain.dns1[{$DOMINIO.NOME}])) > 0) or (change(/BERNOULLI - Monitor de Dominios/domain.dns1[{$DOMINIO.NOME}])=1 and length(last(/BERNOULLI - Monitor de Dominios/domain.dns1[{$DOMINIO.NOME}])) = 0 and nodata(/BERNOULLI - Monitor de Dominios/domain.dns1[{$DOMINIO.NOME}], 10m)=0)'
+              expression: '(change(/Monitor de Dominios/domain.dns1[{$DOMINIO.NOME}])=1 and length(last(/Monitor de Dominios/domain.dns1[{$DOMINIO.NOME}])) > 0) or (change(/Monitor de Dominios/domain.dns1[{$DOMINIO.NOME}])=1 and length(last(/Monitor de Dominios/domain.dns1[{$DOMINIO.NOME}])) = 0 and nodata(/Monitor de Dominios/domain.dns1[{$DOMINIO.NOME}], 10m)=0)'
               recovery_mode: RECOVERY_EXPRESSION
-              recovery_expression: 'length(last(/BERNOULLI - Monitor de Dominios/domain.dns1[{$DOMINIO.NOME}])) > 0'
+              recovery_expression: 'length(last(/Monitor de Dominios/domain.dns1[{$DOMINIO.NOME}])) > 0'
               name: 'Alteração no DNS 1 do domínio {$DOMINIO.NOME} :: Novo Registro [{ITEM.VALUE}]'
               priority: HIGH
               description: |
@@ -146,9 +146,9 @@ zabbix_export:
               value: Domínio
           triggers:
             - uuid: 7e1db448a6e748d2bc303e15ed3761e1
-              expression: '(change(/BERNOULLI - Monitor de Dominios/domain.dns2[{$DOMINIO.NOME}])=1 and length(last(/BERNOULLI - Monitor de Dominios/domain.dns2[{$DOMINIO.NOME}])) > 0) or (change(/BERNOULLI - Monitor de Dominios/domain.dns2[{$DOMINIO.NOME}])=1 and length(last(/BERNOULLI - Monitor de Dominios/domain.dns2[{$DOMINIO.NOME}])) = 0 and nodata(/BERNOULLI - Monitor de Dominios/domain.dns2[{$DOMINIO.NOME}], 10m)=0)'
+              expression: '(change(/Monitor de Dominios/domain.dns2[{$DOMINIO.NOME}])=1 and length(last(/Monitor de Dominios/domain.dns2[{$DOMINIO.NOME}])) > 0) or (change(/Monitor de Dominios/domain.dns2[{$DOMINIO.NOME}])=1 and length(last(/Monitor de Dominios/domain.dns2[{$DOMINIO.NOME}])) = 0 and nodata(/Monitor de Dominios/domain.dns2[{$DOMINIO.NOME}], 10m)=0)'
               recovery_mode: RECOVERY_EXPRESSION
-              recovery_expression: 'length(last(/BERNOULLI - Monitor de Dominios/domain.dns2[{$DOMINIO.NOME}])) > 0'
+              recovery_expression: 'length(last(/Monitor de Dominios/domain.dns2[{$DOMINIO.NOME}])) > 0'
               name: 'Alteração no DNS 2 do domínio {$DOMINIO.NOME} :: Novo Registro [{ITEM.VALUE}]'
               priority: HIGH
               description: |
@@ -172,9 +172,9 @@ zabbix_export:
               value: Domínio
           triggers:
             - uuid: 7c7b121b8a2d42a7bd6076361b5a3834
-              expression: '(change(/BERNOULLI - Monitor de Dominios/domain.dns3[{$DOMINIO.NOME}])=1 and length(last(/BERNOULLI - Monitor de Dominios/domain.dns3[{$DOMINIO.NOME}])) > 0) or (change(/BERNOULLI - Monitor de Dominios/domain.dns3[{$DOMINIO.NOME}])=1 and length(last(/BERNOULLI - Monitor de Dominios/domain.dns3[{$DOMINIO.NOME}])) = 0 and nodata(/BERNOULLI - Monitor de Dominios/domain.dns3[{$DOMINIO.NOME}], 10m)=0)'
+              expression: '(change(/Monitor de Dominios/domain.dns3[{$DOMINIO.NOME}])=1 and length(last(/Monitor de Dominios/domain.dns3[{$DOMINIO.NOME}])) > 0) or (change(/Monitor de Dominios/domain.dns3[{$DOMINIO.NOME}])=1 and length(last(/Monitor de Dominios/domain.dns3[{$DOMINIO.NOME}])) = 0 and nodata(/Monitor de Dominios/domain.dns3[{$DOMINIO.NOME}], 10m)=0)'
               recovery_mode: RECOVERY_EXPRESSION
-              recovery_expression: 'length(last(/BERNOULLI - Monitor de Dominios/domain.dns3[{$DOMINIO.NOME}])) > 0'
+              recovery_expression: 'length(last(/Monitor de Dominios/domain.dns3[{$DOMINIO.NOME}])) > 0'
               name: 'Alteração no DNS 3 do domínio {$DOMINIO.NOME} :: Novo Registro [{ITEM.VALUE}]'
               priority: HIGH
               description: |
@@ -198,9 +198,9 @@ zabbix_export:
               value: Domínio
           triggers:
             - uuid: 0f8323eabc5d4634b1587064eecb6273
-              expression: '(change(/BERNOULLI - Monitor de Dominios/domain.dns4[{$DOMINIO.NOME}])=1 and length(last(/BERNOULLI - Monitor de Dominios/domain.dns4[{$DOMINIO.NOME}])) > 0) or (change(/BERNOULLI - Monitor de Dominios/domain.dns4[{$DOMINIO.NOME}])=1 and length(last(/BERNOULLI - Monitor de Dominios/domain.dns4[{$DOMINIO.NOME}])) = 0 and nodata(/BERNOULLI - Monitor de Dominios/domain.dns4[{$DOMINIO.NOME}], 10m)=0)'
+              expression: '(change(/Monitor de Dominios/domain.dns4[{$DOMINIO.NOME}])=1 and length(last(/Monitor de Dominios/domain.dns4[{$DOMINIO.NOME}])) > 0) or (change(/Monitor de Dominios/domain.dns4[{$DOMINIO.NOME}])=1 and length(last(/Monitor de Dominios/domain.dns4[{$DOMINIO.NOME}])) = 0 and nodata(/Monitor de Dominios/domain.dns4[{$DOMINIO.NOME}], 10m)=0)'
               recovery_mode: RECOVERY_EXPRESSION
-              recovery_expression: 'length(last(/BERNOULLI - Monitor de Dominios/domain.dns4[{$DOMINIO.NOME}])) > 0'
+              recovery_expression: 'length(last(/Monitor de Dominios/domain.dns4[{$DOMINIO.NOME}])) > 0'
               name: 'Alteração no DNS 4 do domínio {$DOMINIO.NOME} :: Novo Registro [{ITEM.VALUE}]'
               priority: HIGH
               description: |
@@ -237,9 +237,9 @@ zabbix_export:
               value: Domínio
           triggers:
             - uuid: 4c12ade992174da7b0cd97014df64c59
-              expression: '(change(/BERNOULLI - Monitor de Dominios/domain.dononome[{$DOMINIO.NOME}])=1 and length(last(/BERNOULLI - Monitor de Dominios/domain.dononome[{$DOMINIO.NOME}])) > 0) or (change(/BERNOULLI - Monitor de Dominios/domain.dononome[{$DOMINIO.NOME}])=1 and length(last(/BERNOULLI - Monitor de Dominios/domain.dononome[{$DOMINIO.NOME}])) = 0 and nodata(/BERNOULLI - Monitor de Dominios/domain.dononome[{$DOMINIO.NOME}], 10m)=0)'
+              expression: '(change(/Monitor de Dominios/domain.dononome[{$DOMINIO.NOME}])=1 and length(last(/Monitor de Dominios/domain.dononome[{$DOMINIO.NOME}])) > 0) or (change(/Monitor de Dominios/domain.dononome[{$DOMINIO.NOME}])=1 and length(last(/Monitor de Dominios/domain.dononome[{$DOMINIO.NOME}])) = 0 and nodata(/Monitor de Dominios/domain.dononome[{$DOMINIO.NOME}], 10m)=0)'
               recovery_mode: RECOVERY_EXPRESSION
-              recovery_expression: 'length(last(/BERNOULLI - Monitor de Dominios/domain.dononome[{$DOMINIO.NOME}])) > 0'
+              recovery_expression: 'length(last(/Monitor de Dominios/domain.dononome[{$DOMINIO.NOME}])) > 0'
               name: 'Alteração no responsável pelo domínio {$DOMINIO.NOME} :: Novo valor [{ITEM.VALUE}]'
               priority: HIGH
               description: |
@@ -276,9 +276,9 @@ zabbix_export:
               value: Domínio
           triggers:
             - uuid: b812f9f0f15c4387a773333586db7a4e
-              expression: '(change(/BERNOULLI - Monitor de Dominios/domain.dono[{$DOMINIO.NOME}])=1 and length(last(/BERNOULLI - Monitor de Dominios/domain.dono[{$DOMINIO.NOME}])) > 0) or (change(/BERNOULLI - Monitor de Dominios/domain.dono[{$DOMINIO.NOME}])=1 and length(last(/BERNOULLI - Monitor de Dominios/domain.dono[{$DOMINIO.NOME}])) = 0 and nodata(/BERNOULLI - Monitor de Dominios/domain.dono[{$DOMINIO.NOME}], 10m)=0)'
+              expression: '(change(/Monitor de Dominios/domain.dono[{$DOMINIO.NOME}])=1 and length(last(/Monitor de Dominios/domain.dono[{$DOMINIO.NOME}])) > 0) or (change(/Monitor de Dominios/domain.dono[{$DOMINIO.NOME}])=1 and length(last(/Monitor de Dominios/domain.dono[{$DOMINIO.NOME}])) = 0 and nodata(/Monitor de Dominios/domain.dono[{$DOMINIO.NOME}], 10m)=0)'
               recovery_mode: RECOVERY_EXPRESSION
-              recovery_expression: 'length(last(/BERNOULLI - Monitor de Dominios/domain.dono[{$DOMINIO.NOME}])) > 0'
+              recovery_expression: 'length(last(/Monitor de Dominios/domain.dono[{$DOMINIO.NOME}])) > 0'
               name: 'Alteração na titularidade do domínio {$DOMINIO.NOME} >>>  [{ITEM.VALUE}]'
               priority: HIGH
               description: |
@@ -323,23 +323,23 @@ zabbix_export:
               value: Dominio
           triggers:
             - uuid: b52fe3db9ae146efa588a70672ecc3e1
-              expression: 'last(/BERNOULLI - Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])<={$ALERTA.DISATRE.EXPIRACAO}'
+              expression: 'last(/Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])<={$ALERTA.DISATRE.EXPIRACAO}'
               recovery_mode: RECOVERY_EXPRESSION
-              recovery_expression: 'last(/BERNOULLI - Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])>={$ALERTA.DISATRE.EXPIRACAO}'
+              recovery_expression: 'last(/Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])>={$ALERTA.DISATRE.EXPIRACAO}'
               name: 'Dominio {$DOMINIO.NOME} está perto de vencer. {ITEM.LASTVALUE1} dias Restantes'
               priority: DISASTER
 
             - uuid: 22d763f38fed4e4f95dbd4658312814a
-              expression: 'last(/BERNOULLI - Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])<={$ALERTA.EXPIRACAO}'
+              expression: 'last(/Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])<={$ALERTA.EXPIRACAO}'
               recovery_mode: RECOVERY_EXPRESSION
-              recovery_expression: 'last(/BERNOULLI - Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])>={$ALERTA.EXPIRACAO}'
+              recovery_expression: 'last(/Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])>={$ALERTA.EXPIRACAO}'
               name: 'Dominio {$DOMINIO.NOME} está perto de vencer. {ITEM.LASTVALUE1} dias Restantes'
               priority: HIGH
 
             - uuid: 2ff50096d5b0418b975d00370e5689b2
-              expression: 'last(/BERNOULLI - Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])<={$ALERTA.INFORMATIVO.EXPIRACAO}'
+              expression: 'last(/Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])<={$ALERTA.INFORMATIVO.EXPIRACAO}'
               recovery_mode: RECOVERY_EXPRESSION
-              recovery_expression: 'last(/BERNOULLI - Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])>={$ALERTA.INFORMATIVO.EXPIRACAO}'
+              recovery_expression: 'last(/Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])>={$ALERTA.INFORMATIVO.EXPIRACAO}'
               name: 'Dominio {$DOMINIO.NOME} está perto de vencer. {ITEM.LASTVALUE1} dias Restantes'
               priority: INFO
 
@@ -488,7 +488,7 @@ zabbix_export:
               value: Domínio
           triggers:
             - uuid: 000e58f3416348b6bccf7a5915220adf
-              expression: 'change(/BERNOULLI - Monitor de Dominios/domain.status[{$DOMINIO.NOME}])=1'
+              expression: 'change(/Monitor de Dominios/domain.status[{$DOMINIO.NOME}])=1'
               recovery_mode: NONE
               name: 'Status do dominio {$DOMINIO.NOME} foi alterado. [[ {ITEM.VALUE} ]]'
               priority: DISASTER
@@ -513,9 +513,9 @@ zabbix_export:
               value: Domínio
           triggers:
             - uuid: aee7d659a50741c5b7f398ae95e48441
-              expression: '(change(/BERNOULLI - Monitor de Dominios/domain.suporteregistro[{$DOMINIO.NOME}])=1 and length(last(/BERNOULLI - Monitor de Dominios/domain.suporteregistro[{$DOMINIO.NOME}])) > 0) or (change(/BERNOULLI - Monitor de Dominios/domain.suporteregistro[{$DOMINIO.NOME}])=1 and length(last(/BERNOULLI - Monitor de Dominios/domain.suporteregistro[{$DOMINIO.NOME}])) = 0 and nodata(/BERNOULLI - Monitor de Dominios/domain.suporteregistro[{$DOMINIO.NOME}], 10m)=0)'
+              expression: '(change(/Monitor de Dominios/domain.suporteregistro[{$DOMINIO.NOME}])=1 and length(last(/Monitor de Dominios/domain.suporteregistro[{$DOMINIO.NOME}])) > 0) or (change(/Monitor de Dominios/domain.suporteregistro[{$DOMINIO.NOME}])=1 and length(last(/Monitor de Dominios/domain.suporteregistro[{$DOMINIO.NOME}])) = 0 and nodata(/Monitor de Dominios/domain.suporteregistro[{$DOMINIO.NOME}], 10m)=0)'
               recovery_mode: RECOVERY_EXPRESSION
-              recovery_expression: 'length(last(/BERNOULLI - Monitor de Dominios/domain.suporteregistro[{$DOMINIO.NOME}])) > 0'
+              recovery_expression: 'length(last(/Monitor de Dominios/domain.suporteregistro[{$DOMINIO.NOME}])) > 0'
               name: 'Alteração no responsável de Suporte do domínio {$DOMINIO.NOME} >>> {ITEM.VALUE}'
               priority: WARNING
               description: |
