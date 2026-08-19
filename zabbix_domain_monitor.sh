@@ -1,4 +1,8 @@
+# Zabbix Domain Monitor Desenvolvidor por maj0r
+# Acesse o projeto em https://github.com/lmaj0r/zabbix-domain-monitor
+
 #!/usr/bin/env bash
+
 
 METRIC="${1:-}"
 DOMAIN="${2:-}"
