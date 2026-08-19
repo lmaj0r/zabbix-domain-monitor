@@ -40,18 +40,11 @@ domain_exists() {
     local label
 
     [ -n "$domain" ] || return 1
-
-    # Tamanho máximo conforme DNS.
     [ "${#domain}" -le 253 ] || return 1
 
-    # Rejeita ponto no início/fim.
     [[ "$domain" != .* ]] || return 1
     [[ "$domain" != *. ]] || return 1
-
-    # Precisa ter ao menos um ponto.
     [[ "$domain" == *.* ]] || return 1
-
-    # Apenas letras, números, hífen e ponto.
     [[ "$domain" =~ ^[a-zA-Z0-9.-]+$ ]] || return 1
 
     IFS='.' read -r -a labels <<< "$domain"
@@ -59,8 +52,6 @@ domain_exists() {
     for label in "${labels[@]}"; do
         [ -n "$label" ] || return 1
         [ "${#label}" -le 63 ] || return 1
-
-        # Label não pode começar ou terminar com hífen.
         [[ "$label" != -* ]] || return 1
         [[ "$label" != *- ]] || return 1
     done
@@ -103,7 +94,6 @@ whois_output_is_valid() {
 
     [ -s "$file" ] || return 1
 
-    # Evita cachear falhas transitórias conhecidas.
     if grep -Eiq 'timed out|timeout|connection refused|temporary failure|try again|service unavailable|rate limit exceeded|quota exceeded' "$file"; then
         return 1
     fi
@@ -130,22 +120,17 @@ refresh_cache_if_needed() {
     local sleep_time
     local tmp_file
 
-    # Lock por domínio.
-    # Processos simultâneos para o mesmo domínio entram em fila.
     exec 200>"$LOCK_FILE" || return 1
 
     if ! flock -w "$LOCK_TIMEOUT" 200; then
         return 1
     fi
 
-    # Outro processo pode ter atualizado o cache enquanto aguardávamos o lock.
     if cache_is_valid; then
         flock -u 200
         return 0
     fi
 
-    # Lock global de WHOIS.
-    # Garante rate limit único para todos os domínios.
     exec 201>"$GLOBAL_LOCK" || {
         flock -u 200
         return 1
@@ -174,7 +159,6 @@ refresh_cache_if_needed() {
 
     run_whois "$domain" "$tmp_file"
 
-    # Atualiza o timer mesmo em caso de falha para evitar rajada contra o WHOIS.
     date +%s > "$GLOBAL_TIMER" 2>/dev/null || true
     chmod 666 "$GLOBAL_TIMER" 2>/dev/null || true
 
@@ -414,6 +398,7 @@ get_domain_info() {
         alterado)
             value="$(first_field "changed" "$CACHE_FILE")"
             [ -z "$value" ] && value="$(first_field "Updated Date" "$CACHE_FILE")"
+
             if [ -n "$value" ]; then
                 echo "$value" | compact_value
             else
@@ -433,8 +418,8 @@ get_domain_info() {
 }
 
 check_domain() {
-    local domain
     local attr
+    local domain
 
     attr="$1"
     domain="$(normalize_domain "$2")"
