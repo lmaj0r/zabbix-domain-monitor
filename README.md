@@ -27,8 +27,6 @@ sudo bash install.sh
 ```
 
 
-
-
 **O instalador realiza as seguintes ações:**
 
 1. Verifica e instala dependências quando possível.
@@ -44,8 +42,7 @@ sudo bash install.sh
 5. Reinicia o serviço do Zabbix Agent quando disponível.
 
 
-
-
+  
 **Métricas disponíveis**  
 Métrica	 = Descrição  
 nome = Nome do domínio  
