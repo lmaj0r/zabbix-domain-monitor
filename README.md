@@ -24,7 +24,7 @@ O projeto foi desenvolvido em **Bash** e utiliza ferramentas nativas do Linux, c
 - Compatível com Zabbix Agent legado.
 - Compatível com Zabbix Agent 2.
 - Instalador automático.
-- Template YAML para importação no Zabbix.
+- Template YAML para importação no Zabbix 7.0.
 
 ---
 
@@ -63,7 +63,7 @@ O instalador realiza automaticamente as seguintes ações:
 /usr/local/bin/zabbix_domain_monitor.sh
 ```
 
-4. Ajusta as permissões de execução.
+4. Ajusta permissões de execução.
 5. Cria o diretório de cache:
 
 ```text
@@ -71,14 +71,20 @@ O instalador realiza automaticamente as seguintes ações:
 ```
 
 6. Ajusta permissões do cache.
-7. Copia o arquivo `userparameter_domain.conf` para o diretório do Zabbix Agent.
+7. Copia o arquivo `userparameter_domain.conf` para o diretório do Zabbix Agent ou Zabbix Agent 2.
 8. Reinicia o serviço do Zabbix Agent ou Zabbix Agent 2, quando disponível.
 
 ---
 
 ## Uso manual
 
-Exemplo de consulta manual:
+O script principal recebe dois parâmetros:
+
+```bash
+zabbix_domain_monitor.sh <atributo> <dominio>
+```
+
+Exemplo consultando a data de expiração:
 
 ```bash
 /usr/local/bin/zabbix_domain_monitor.sh expira empresa.com.br
@@ -101,56 +107,93 @@ Exemplo consultando servidores DNS:
 
 ## Uso com Zabbix Agent
 
+Este projeto utiliza UserParameters no seguinte padrão:
+
+```text
+domain.<atributo>[dominio]
+```
+
+Exemplos:
+
+```text
+domain.expira[empresa.com.br]
+domain.status[empresa.com.br]
+domain.dono[empresa.com.br]
+domain.dns1[empresa.com.br]
+```
+
 Teste com Zabbix Agent legado:
 
 ```bash
-zabbix_agentd -t 'domain.whois[expira,empresa.com.br]'
+zabbix_agentd -t 'domain.expira[empresa.com.br]'
 ```
 
 Teste com Zabbix Agent 2:
 
 ```bash
-zabbix_agent2 -t 'domain.whois[expira,empresa.com.br]'
+zabbix_agent2 -t 'domain.expira[empresa.com.br]'
 ```
 
 ---
 
 ## Métricas disponíveis
 
-| Métrica | Descrição |
-|---|---|
-| `nome` | Nome do domínio |
-| `status` | Status do domínio |
-| `dono` | Proprietário ou organização responsável |
-| `donocnpj` | Identificador do proprietário, quando disponível |
-| `dononome` | Nome do responsável pelo domínio |
-| `pais` | País do registro |
-| `donoregistro` | Código de contato do proprietário |
-| `suporteregistro` | Código de contato técnico |
-| `dns1` | Primeiro servidor DNS |
-| `dns2` | Segundo servidor DNS |
-| `dns3` | Terceiro servidor DNS |
-| `dns4` | Quarto servidor DNS |
-| `criado` | Data de criação do domínio |
-| `criadonumero` | Número associado ao campo de criação, quando disponível |
-| `alterado` | Data da última alteração |
-| `expira` | Data de expiração do domínio |
+| Chave Zabbix | Atributo interno | Descrição |
+|---|---|---|
+| `domain.nome[dominio]` | `nome` | Nome do domínio |
+| `domain.status[dominio]` | `status` | Status do domínio |
+| `domain.dono[dominio]` | `dono` | Proprietário ou razão social |
+| `domain.donocnpj[dominio]` | `donocnpj` | Identificador do proprietário, quando disponível |
+| `domain.dononome[dominio]` | `dononome` | Nome do responsável pelo domínio |
+| `domain.pais[dominio]` | `pais` | País do registro |
+| `domain.donoregistro[dominio]` | `donoregistro` | Código de contato do proprietário |
+| `domain.suporteregistro[dominio]` | `suporteregistro` | Código de contato técnico |
+| `domain.dns1[dominio]` | `dns1` | Primeiro servidor DNS |
+| `domain.dns2[dominio]` | `dns2` | Segundo servidor DNS |
+| `domain.dns3[dominio]` | `dns3` | Terceiro servidor DNS |
+| `domain.dns4[dominio]` | `dns4` | Quarto servidor DNS |
+| `domain.criado[dominio]` | `criado` | Data de criação do domínio |
+| `domain.criadonumero[dominio]` | `criadonumero` | Número associado ao campo de criação, quando disponível |
+| `domain.alterado[dominio]` | `alterado` | Data da última alteração |
+| `domain.expira[dominio]` | `expira` | Data de expiração do domínio |
 
 ---
 
-## UserParameter do Zabbix
+## Template Zabbix
 
-O item principal utilizado pelo Zabbix é:
-
-```text
-domain.whois[atributo,dominio]
-```
-
-Exemplo:
+O template está disponível em:
 
 ```text
-domain.whois[expira,empresa.com.br]
+zabbix_template/template_domain_monitor.yaml
 ```
+
+Template incluído:
+
+```text
+BERNOULLI - Monitor de Dominios
+```
+
+Macro principal do domínio:
+
+```text
+{$DOMINIO.NOME}
+```
+
+Exemplo de valor:
+
+```text
+empresa.com.br
+```
+
+Macros de alerta de expiração:
+
+| Macro | Valor padrão | Descrição |
+|---|---:|---|
+| `{$ALERTA.DISATRE.EXPIRACAO}` | `2` | Alerta crítico/desastre para domínios próximos do vencimento |
+| `{$ALERTA.EXPIRACAO}` | `30` | Alerta alto para domínios próximos do vencimento |
+| `{$ALERTA.INFORMATIVO.EXPIRACAO}` | `60` | Alerta informativo para domínios próximos do vencimento |
+
+> Observação: a macro `{$ALERTA.DISATRE.EXPIRACAO}` foi mantida com esse nome para preservar compatibilidade com o template existente.
 
 ---
 
