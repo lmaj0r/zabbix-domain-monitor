@@ -7,7 +7,11 @@ zabbix_export:
     - uuid: 18e24065bf164f479da0a4735136f083
       template: 'Monitor de Dominios'
       name: 'Monitor de Dominios'
-      description: 'Template para monitorar domínios retornando diversas informações na pesquisa de whois.'
+      description: |
+        Template para monitorar domínios retornando diversas informações na pesquisa de whois. 
+        
+        Desenvolvido por maj0r
+        Acesse o projeto em https://github.com/lmaj0r/zabbix-domain-monitor
       groups:
         - name: Templates/Applications
       items:
