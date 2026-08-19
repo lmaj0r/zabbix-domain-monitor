@@ -38,7 +38,7 @@ O projeto foi desenvolvido em **Bash** e utiliza ferramentas nativas do Linux, c
 
 ---
 
-## Instalação
+## Instalação (Execução em sequencia)
 
 Clone o repositório:
 
@@ -48,7 +48,11 @@ git clone https://github.com/lmaj0r/zabbix-domain-monitor.git
 ```bash
 cd zabbix-domain-monitor
 ```
+Antes de executar o instalador, vamos incluir a permissão de execução no arquivo
 
+```bash
+sudo chmod +x install.sh
+```
 Execute o instalador:
 
 ```bash
