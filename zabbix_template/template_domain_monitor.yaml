@@ -7,11 +7,7 @@ zabbix_export:
     - uuid: 18e24065bf164f479da0a4735136f083
       template: 'Monitor de Dominios'
       name: 'Monitor de Dominios'
-      description: |
-        Template para monitorar domínios retornando diversas informações na pesquisa de whois. 
-        
-        Desenvolvido por maj0r
-        Acesse o projeto em https://github.com/lmaj0r/zabbix-domain-monitor
+      description: 'Template para monitorar domínios retornando diversas informações na pesquisa de whois.'
       groups:
         - name: Templates/Applications
       items:
@@ -27,15 +23,18 @@ zabbix_export:
             - type: JAVASCRIPT
               parameters:
                 - |
-                  var d=value;
+                  var d=value; 
                   var meses=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-
-                  var ano = d.substring(0,4);
-                  var mesNum = parseInt(d.substring(4,6), 10);
-                  var dia = d.substring(6,8);
-
-                  var mesNome = meses[mesNum - 1];
-
+                  
+                  // Extração dos componentes da string YYYYMMDD
+                  var ano = d.substring(0,4); 
+                  var mesNum = parseInt(d.substring(4,6), 10); 
+                  var dia = d.substring(6,8); 
+                  
+                  // Traduz o número do mês para o nome (meses[0] é Janeiro)
+                  var mesNome = meses[mesNum - 1]; 
+                  
+                  // Retorna a string final no formato DD Mês YYYY
                   return dia + " " + mesNome + " " + ano;
           master_item:
             key: 'domain.alterado[{$DOMINIO.NOME}]'
@@ -44,7 +43,6 @@ zabbix_export:
               value: 'Dados Domínio'
             - tag: component
               value: Domínio
-
         - uuid: 2e05f04fdfc24fb8921e32a94303869a
           name: 'Data Alteração Domínio'
           key: 'domain.alterado[{$DOMINIO.NOME}]'
@@ -55,7 +53,6 @@ zabbix_export:
               value: 'Dados Domínio'
             - tag: component
               value: Domínio
-
         - uuid: c55172301c2849b9a57dd28c7e3aaf1d
           name: 'Data Origem Domínio Formatado'
           type: DEPENDENT
@@ -68,15 +65,18 @@ zabbix_export:
             - type: JAVASCRIPT
               parameters:
                 - |
-                  var d=value;
+                  var d=value; 
                   var meses=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-
-                  var ano = d.substring(0,4);
-                  var mesNum = parseInt(d.substring(4,6), 10);
-                  var dia = d.substring(6,8);
-
-                  var mesNome = meses[mesNum - 1];
-
+                  
+                  // Extração dos componentes da string YYYYMMDD
+                  var ano = d.substring(0,4); 
+                  var mesNum = parseInt(d.substring(4,6), 10); 
+                  var dia = d.substring(6,8); 
+                  
+                  // Traduz o número do mês para o nome (meses[0] é Janeiro)
+                  var mesNome = meses[mesNum - 1]; 
+                  
+                  // Retorna a string final no formato DD Mês YYYY
                   return dia + " " + mesNome + " " + ano;
           master_item:
             key: 'domain.criado[{$DOMINIO.NOME}]'
@@ -85,7 +85,6 @@ zabbix_export:
               value: 'Dados Domínio'
             - tag: component
               value: Domínio
-
         - uuid: 8393b8e4fa054a4890f5ffb05e9fc2b0
           name: 'Numero Registro Domínio'
           key: 'domain.criadonumero[{$DOMINIO.NOME}]'
@@ -98,7 +97,6 @@ zabbix_export:
               value: 'Dados Domínio'
             - tag: component
               value: Domínio
-
         - uuid: c51a6b58445240668a53a3089d8d9ca3
           name: 'Data Origem Domínio'
           key: 'domain.criado[{$DOMINIO.NOME}]'
@@ -109,7 +107,6 @@ zabbix_export:
               value: 'Dados Domínio'
             - tag: component
               value: Domínio
-
         - uuid: 22a0f2c6125a405593ea225fa7be2f3f
           name: 'Servidor DNS 1 Domínio'
           key: 'domain.dns1[{$DOMINIO.NOME}]'
@@ -130,12 +127,11 @@ zabbix_export:
               name: 'Alteração no DNS 1 do domínio {$DOMINIO.NOME} :: Novo Registro [{ITEM.VALUE}]'
               priority: HIGH
               description: |
-                **DNS 1** do Domínio foi alterado!
-
-                  - Valor Anterior: {ITEM.VALUE1}
-                  - **Novo Valor: {ITEM.VALUE}**
+                **DNS** do Domínio foi alterado!
+                
+                  - Valor Anterior (Problema): {ITEM.VALUE1}
+                  - **Novo Valor (Atual): {ITEM.VALUE}**
               manual_close: 'YES'
-
         - uuid: b4fe3bc7e03f4d0d976323ea0be2b295
           name: 'Servidor DNS 2 Domínio'
           key: 'domain.dns2[{$DOMINIO.NOME}]'
@@ -156,12 +152,11 @@ zabbix_export:
               name: 'Alteração no DNS 2 do domínio {$DOMINIO.NOME} :: Novo Registro [{ITEM.VALUE}]'
               priority: HIGH
               description: |
-                **DNS 2** do Domínio foi alterado!
-
-                  - Valor Anterior: {ITEM.VALUE1}
-                  - **Novo Valor: {ITEM.VALUE}**
+                **DNS** do Domínio foi alterado!
+                
+                  - Valor Anterior (Problema): {ITEM.VALUE1}
+                  - **Novo Valor (Atual): {ITEM.VALUE}**
               manual_close: 'YES'
-
         - uuid: 8cb55be19f6d45b6b6e1a6e95be61c31
           name: 'Servidor DNS 3 Domínio'
           key: 'domain.dns3[{$DOMINIO.NOME}]'
@@ -183,11 +178,10 @@ zabbix_export:
               priority: HIGH
               description: |
                 **DNS 3** do Domínio foi alterado!
-
-                  - Valor Anterior: {ITEM.VALUE1}
-                  - **Novo Valor: {ITEM.VALUE}**
+                
+                  - Valor Anterior (Problema): {ITEM.VALUE1}
+                  - **Novo Valor (Atual): {ITEM.VALUE}**
               manual_close: 'YES'
-
         - uuid: e0307d08891c412f963fcafb5fcc8f25
           name: 'Servidor DNS 4 Domínio'
           key: 'domain.dns4[{$DOMINIO.NOME}]'
@@ -209,11 +203,10 @@ zabbix_export:
               priority: HIGH
               description: |
                 **DNS 4** do Domínio foi alterado!
-
-                  - Valor Anterior: {ITEM.VALUE1}
-                  - **Novo Valor: {ITEM.VALUE}**
+                
+                  - Valor Anterior (Problema): {ITEM.VALUE1}
+                  - **Novo Valor (Atual): {ITEM.VALUE}**
               manual_close: 'YES'
-
         - uuid: 50e962936562434381c9a97f124f7df8
           name: 'CNPJ Domínio'
           key: 'domain.donocnpj[{$DOMINIO.NOME}]'
@@ -226,7 +219,6 @@ zabbix_export:
               value: 'Dados Domínio'
             - tag: component
               value: Domínio
-
         - uuid: 95938c7c32b04652b329e45f88e6d55d
           name: 'Dono Domínio Responsável'
           key: 'domain.dononome[{$DOMINIO.NOME}]'
@@ -247,12 +239,11 @@ zabbix_export:
               name: 'Alteração no responsável pelo domínio {$DOMINIO.NOME} :: Novo valor [{ITEM.VALUE}]'
               priority: HIGH
               description: |
-                O **RESPONSÁVEL** pelo Domínio foi alterado!
-
-                  - Valor Anterior: {ITEM.VALUE1}
-                  - **Novo Valor: {ITEM.VALUE}**
+                O **PROPRIETÁRIO** do Domínio foi alterado!
+                
+                  - Valor Anterior (Problema): {ITEM.VALUE1}
+                  - **Novo Valor (Atual): {ITEM.VALUE}**
               manual_close: 'YES'
-
         - uuid: aedb323e9b124c0f9ba6b16afad06672
           name: 'Dono Domínio ID Registro BR'
           key: 'domain.donoregistro[{$DOMINIO.NOME}]'
@@ -265,7 +256,6 @@ zabbix_export:
               value: 'Dados Domínio'
             - tag: component
               value: Domínio
-
         - uuid: 9a9b467a88684893aef393eb210ddb63
           name: 'Dono Domínio Razão Social'
           key: 'domain.dono[{$DOMINIO.NOME}]'
@@ -286,15 +276,14 @@ zabbix_export:
               name: 'Alteração na titularidade do domínio {$DOMINIO.NOME} >>>  [{ITEM.VALUE}]'
               priority: HIGH
               description: |
-                O **TITULAR** do Domínio foi alterado!
-
-                  - Valor Anterior: {ITEM.VALUE1}
-                  - **Novo Valor: {ITEM.VALUE}**
-
-                **Documento do Proprietário:** {ITEM.LASTVALUE1:domain.donocnpj[{$DOMINIO.NOME}].last(0)}
+                O **TITULAR** do Domínio foi alterado! 
+                
+                  - Valor Anterior (Problema): {ITEM.VALUE1}
+                  - **Novo Valor (Atual): {ITEM.VALUE}**
+                
+                **Documento do Proprietário (Valor Atual):** {ITEM.LASTVALUE1:domain.donocnpj[{$DOMINIO.NOME}].last(0)}
                 **ID da Conta:** {ITEM.LASTVALUE1:domain.donoregistro[{$DOMINIO.NOME}].last(0)}
               manual_close: 'YES'
-
         - uuid: 9bffc20adebe4b0a967dee535f605d45
           name: 'Dias Restantes Expiração Calculado'
           type: DEPENDENT
@@ -305,18 +294,31 @@ zabbix_export:
             - type: JAVASCRIPT
               parameters:
                 - |
+                  // O valor do item mestre (20251028) está disponível como "value"
                   var dataString = value;
-
+                  
+                  // 1. Extrai ano, mês e dia da string
+                  // YYYY = 2025, MM = 10, DD = 28
                   var ano = dataString.substring(0, 4);
                   var mes = dataString.substring(4, 6);
                   var dia = dataString.substring(6, 8);
-
+                  
+                  // 2. Cria o objeto Date para a data futura (Data de Vencimento)
+                  // O mês em JavaScript é base 0 (Janeiro = 0, Outubro = 9), por isso subtraímos 1.
                   var dataFutura = new Date(ano, mes - 1, dia);
+                  
+                  // 3. Obtém a data e hora atuais do Zabbix/Servidor
                   var dataAtual = new Date();
-
+                  
+                  // 4. Calcula a diferença em milissegundos
+                  // Date.getTime() retorna milissegundos desde o Epoch Unix
                   var diffMilissegundos = dataFutura.getTime() - dataAtual.getTime();
+                  
+                  // 5. Converte milissegundos para dias
+                  // 1000 ms/s * 60 s/min * 60 min/h * 24 h/dia = 86,400,000 milissegundos por dia
                   var diasFaltantes = Math.ceil(diffMilissegundos / (1000 * 60 * 60 * 24));
-
+                  
+                  // Retorna o valor calculado em dias
                   return diasFaltantes;
           master_item:
             key: 'domain.expira[{$DOMINIO.NOME}]'
@@ -332,21 +334,18 @@ zabbix_export:
               recovery_expression: 'last(/Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])>={$ALERTA.DISATRE.EXPIRACAO}'
               name: 'Dominio {$DOMINIO.NOME} está perto de vencer. {ITEM.LASTVALUE1} dias Restantes'
               priority: DISASTER
-
             - uuid: 22d763f38fed4e4f95dbd4658312814a
               expression: 'last(/Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])<={$ALERTA.EXPIRACAO}'
               recovery_mode: RECOVERY_EXPRESSION
-              recovery_expression: 'last(/Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])>={$ALERTA.EXPIRACAO}'
+              recovery_expression: 'last(/Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])>{$ALERTA.EXPIRACAO}'
               name: 'Dominio {$DOMINIO.NOME} está perto de vencer. {ITEM.LASTVALUE1} dias Restantes'
               priority: HIGH
-
             - uuid: 2ff50096d5b0418b975d00370e5689b2
               expression: 'last(/Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])<={$ALERTA.INFORMATIVO.EXPIRACAO}'
               recovery_mode: RECOVERY_EXPRESSION
-              recovery_expression: 'last(/Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])>={$ALERTA.INFORMATIVO.EXPIRACAO}'
+              recovery_expression: 'last(/Monitor de Dominios/domain.expira.dias.calculado[{HOST.CONN}])>{$ALERTA.INFORMATIVO.EXPIRACAO}'
               name: 'Dominio {$DOMINIO.NOME} está perto de vencer. {ITEM.LASTVALUE1} dias Restantes'
               priority: INFO
-
         - uuid: fe5ab7b905ad48baac533b4832d3f334
           name: 'Dias Restantes Expiração'
           type: DEPENDENT
@@ -359,28 +358,30 @@ zabbix_export:
             - type: JAVASCRIPT
               parameters:
                 - |
-                  var dataExp = value;
-                  var ano = dataExp.substring(0, 4);
-                  var mes = dataExp.substring(4, 6);
-                  var dia = dataExp.substring(6, 8);
-
+                  var dataExp = value; 
+                  var ano = dataExp.substring(0, 4); 
+                  var mes = dataExp.substring(4, 6); 
+                  var dia = dataExp.substring(6, 8); 
+                  
+                  // Converte YYYYMMDD para Milissegundos UTC (Meia-Noite)
                   var exp_ms = Date.UTC(ano, mes - 1, dia);
-
+                  
                   var now_ms = (new Date()).getTime();
                   var diff = exp_ms - now_ms;
-
+                  
                   var prefix = "Expira em ";
                   var formatted = "";
-
+                  
                   if (diff <= 0) {
                       prefix = "EXPIRADO HÁ ";
                       diff = Math.abs(diff);
                   }
-
+                  
+                  // Cálculo das unidades de tempo
                   var days = Math.floor(diff / (1000 * 60 * 60 * 24));
                   var hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                   var minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
+                  
                   if (days > 1) {
                       formatted = days + " dias, " + hours + "h, " + minutes + "m";
                   } else if (days === 1) {
@@ -388,7 +389,7 @@ zabbix_export:
                   } else {
                       formatted = hours + "h, " + minutes + "m";
                   }
-
+                  
                   return prefix + formatted;
           master_item:
             key: 'domain.expira[{$DOMINIO.NOME}]'
@@ -397,7 +398,6 @@ zabbix_export:
               value: 'Dados Domínio'
             - tag: component
               value: Domínio
-
         - uuid: 37a6f507a8f2492fa0c33c406bfd8d0e
           name: 'Data Expiração Domínio Formatado'
           type: DEPENDENT
@@ -410,15 +410,18 @@ zabbix_export:
             - type: JAVASCRIPT
               parameters:
                 - |
-                  var d=value;
+                  var d=value; 
                   var meses=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-
-                  var ano = d.substring(0,4);
-                  var mesNum = parseInt(d.substring(4,6), 10);
-                  var dia = d.substring(6,8);
-
-                  var mesNome = meses[mesNum - 1];
-
+                  
+                  // Extração dos componentes da string YYYYMMDD
+                  var ano = d.substring(0,4); 
+                  var mesNum = parseInt(d.substring(4,6), 10); 
+                  var dia = d.substring(6,8); 
+                  
+                  // Traduz o número do mês para o nome (meses[0] é Janeiro)
+                  var mesNome = meses[mesNum - 1]; 
+                  
+                  // Retorna a string final no formato DD Mês YYYY
                   return dia + " " + mesNome + " " + ano;
           master_item:
             key: 'domain.expira[{$DOMINIO.NOME}]'
@@ -427,7 +430,6 @@ zabbix_export:
               value: 'Dados Domínio'
             - tag: component
               value: Domínio
-
         - uuid: 528343e8b8a84f7ab9a6bdef5c552fba
           name: 'Data Expiração Domínio'
           key: 'domain.expira[{$DOMINIO.NOME}]'
@@ -438,7 +440,6 @@ zabbix_export:
               value: 'Dados Domínio'
             - tag: component
               value: Domínio
-
         - uuid: f16531abc3634838a92b91a69736faab
           name: 'Nome Domínio'
           key: 'domain.nome[{$DOMINIO.NOME}]'
@@ -451,7 +452,6 @@ zabbix_export:
               value: 'Dados Domínio'
             - tag: component
               value: Domínio
-
         - uuid: 05f477174e354cb397fc9b58a5752858
           name: 'Pais Domínio'
           key: 'domain.pais[{$DOMINIO.NOME}]'
@@ -464,7 +464,6 @@ zabbix_export:
               value: 'Dados Domínio'
             - tag: component
               value: Domínio
-
         - uuid: 5afa938452cb4dd88808ef621ec375a5
           name: 'Status Domínio'
           key: 'domain.status[{$DOMINIO.NOME}]'
@@ -498,11 +497,10 @@ zabbix_export:
               priority: DISASTER
               description: |
                 Status de publicação do Domínio foi alterado.
-
-                  - Valor Anterior: {ITEM.VALUE1}
-                  - **Novo Valor: {ITEM.VALUE}**
+                
+                  - Valor Anterior (Problema): {ITEM.VALUE1}
+                  - **Novo Valor (Atual): {ITEM.VALUE}**
               manual_close: 'YES'
-
         - uuid: e5e0e11965984f6784cdadb059ff60fa
           name: 'Suporte Domínio ID Registro BR'
           key: 'domain.suporteregistro[{$DOMINIO.NOME}]'
@@ -523,12 +521,11 @@ zabbix_export:
               name: 'Alteração no responsável de Suporte do domínio {$DOMINIO.NOME} >>> {ITEM.VALUE}'
               priority: WARNING
               description: |
-                O ID de Suporte do Domínio foi alterado!
-
-                  - Valor Anterior: {ITEM.VALUE1}
-                  - **Novo Valor: {ITEM.VALUE}**
+                O ID de Suporte (Responsável) do Domínio foi alterado!
+                
+                  - Valor Anterior (Problema): {ITEM.VALUE1}
+                  - **Novo Valor (Atual): {ITEM.VALUE}**
               manual_close: 'YES'
-
       tags:
         - tag: class
           value: software
