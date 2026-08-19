@@ -56,7 +56,7 @@ sudo chmod +x install.sh
 Execute o instalador:
 
 ```bash
-sudo bash install.sh
+ sudo ./install.sh
 ```
 
 O instalador realiza automaticamente as seguintes ações:
