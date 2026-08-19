@@ -1,440 +1,334 @@
-#!/usr/bin/env bash
-
 # zabbix-domain-monitor
-# Monitoramento WHOIS com cache local, rate limit global e enfileiramento via flock.
-#
-# Uso:
-#   zabbix_domain_monitor.sh <atributo> <dominio>
-#
-# Exemplo:
-#   zabbix_domain_monitor.sh expira empresa.com.br
 
-METRIC="${1:-}"
-DOMAIN_RAW="${2:-}"
-
-CACHE_DIR="/tmp/zabbix_domain_cache"
-CACHE_TTL=300
-RATE_LIMIT_SECONDS=5
-LOCK_TIMEOUT=60
-WHOIS_TIMEOUT=25
-
-GLOBAL_LOCK="${CACHE_DIR}/.ratelimit_lock"
-GLOBAL_TIMER="${CACHE_DIR}/.ratelimit_timer"
-
-mkdir -p "$CACHE_DIR"
-chmod 1777 "$CACHE_DIR" 2>/dev/null || true
-
-touch "$GLOBAL_LOCK" "$GLOBAL_TIMER" 2>/dev/null || true
-chmod 666 "$GLOBAL_LOCK" "$GLOBAL_TIMER" 2>/dev/null || true
-
-print_null() {
-    echo "null"
-}
-
-normalize_domain() {
-    echo "$1" | tr '[:upper:]' '[:lower:]'
-}
-
-domain_exists() {
-    local domain="$1"
-    local label
-
-    [ -n "$domain" ] || return 1
-    [ "${#domain}" -le 253 ] || return 1
-
-    [[ "$domain" != .* ]] || return 1
-    [[ "$domain" != *. ]] || return 1
-    [[ "$domain" == *.* ]] || return 1
-    [[ "$domain" =~ ^[a-zA-Z0-9.-]+$ ]] || return 1
-
-    IFS='.' read -r -a labels <<< "$domain"
-
-    for label in "${labels[@]}"; do
-        [ -n "$label" ] || return 1
-        [ "${#label}" -le 63 ] || return 1
-        [[ "$label" != -* ]] || return 1
-        [[ "$label" != *- ]] || return 1
-    done
-
-    return 0
-}
-
-prepare_cache_paths() {
-    local domain="$1"
-    local tld
-    local safe_domain
+Monitoramento de domínios via WHOIS para integração com Zabbix, com cache local, rate limit global e enfileiramento automático de consultas simultâneas.
 
-    tld="${domain##*.}"
-    safe_domain="$(echo "$domain" | sed 's/[^a-zA-Z0-9._-]/_/g')"
-
-    TLD_CACHE_DIR="${CACHE_DIR}/${tld}"
-    CACHE_FILE="${TLD_CACHE_DIR}/${safe_domain}"
-    LOCK_FILE="${TLD_CACHE_DIR}/${safe_domain}.lock"
-
-    mkdir -p "$TLD_CACHE_DIR"
-    chmod 1777 "$TLD_CACHE_DIR" 2>/dev/null || true
-}
-
-cache_is_valid() {
-    [ -s "$CACHE_FILE" ] || return 1
+O projeto foi desenvolvido em **Bash** e utiliza ferramentas nativas do Linux, como `whois` e `flock`, para consultar informações WHOIS de domínios de forma controlada, evitando excesso de requisições e prevenindo timeouts no Zabbix.
 
-    local now
-    local file_mtime
-    local age
+---
 
-    now="$(date +%s)"
-    file_mtime="$(stat -c %Y "$CACHE_FILE" 2>/dev/null || echo 0)"
-    age=$((now - file_mtime))
-
-    [ "$age" -le "$CACHE_TTL" ]
-}
-
-whois_output_is_valid() {
-    local file="$1"
-
-    [ -s "$file" ] || return 1
-
-    if grep -Eiq 'timed out|timeout|connection refused|temporary failure|try again|service unavailable|rate limit exceeded|quota exceeded' "$file"; then
-        return 1
-    fi
-
-    return 0
-}
-
-run_whois() {
-    local domain="$1"
-    local tmp_file="$2"
-
-    if command -v timeout >/dev/null 2>&1; then
-        timeout "$WHOIS_TIMEOUT" whois "$domain" > "$tmp_file" 2>/dev/null
-    else
-        whois "$domain" > "$tmp_file" 2>/dev/null
-    fi
-}
-
-refresh_cache_if_needed() {
-    local domain="$1"
-    local last_exec
-    local now
-    local diff
-    local sleep_time
-    local tmp_file
-
-    exec 200>"$LOCK_FILE" || return 1
-
-    if ! flock -w "$LOCK_TIMEOUT" 200; then
-        return 1
-    fi
-
-    if cache_is_valid; then
-        flock -u 200
-        return 0
-    fi
-
-    exec 201>"$GLOBAL_LOCK" || {
-        flock -u 200
-        return 1
-    }
-
-    if ! flock -w "$LOCK_TIMEOUT" 201; then
-        flock -u 200
-        return 1
-    fi
-
-    last_exec="$(cat "$GLOBAL_TIMER" 2>/dev/null || echo 0)"
-
-    if ! [[ "$last_exec" =~ ^[0-9]+$ ]]; then
-        last_exec=0
-    fi
-
-    now="$(date +%s)"
-    diff=$((now - last_exec))
-
-    if [ "$diff" -lt "$RATE_LIMIT_SECONDS" ]; then
-        sleep_time=$((RATE_LIMIT_SECONDS - diff))
-        sleep "$sleep_time"
-    fi
-
-    tmp_file="${CACHE_FILE}.tmp.$$"
-
-    run_whois "$domain" "$tmp_file"
-
-    date +%s > "$GLOBAL_TIMER" 2>/dev/null || true
-    chmod 666 "$GLOBAL_TIMER" 2>/dev/null || true
-
-    if whois_output_is_valid "$tmp_file"; then
-        mv "$tmp_file" "$CACHE_FILE"
-        chmod 666 "$CACHE_FILE" 2>/dev/null || true
-    else
-        rm -f "$tmp_file"
-    fi
-
-    flock -u 201
-    flock -u 200
-
-    return 0
-}
-
-first_field() {
-    local key="$1"
-    local file="$2"
-
-    awk -v wanted="$key" '
-        BEGIN { IGNORECASE = 1 }
-        index($0, ":") > 0 {
-            line = $0
-            field = line
-            sub(/:.*/, "", field)
-
-            if (tolower(field) == tolower(wanted)) {
-                sub(/^[^:]*:[ \t]*/, "", line)
-                print line
-                exit
-            }
-        }
-    ' "$file"
-}
-
-last_field() {
-    local key="$1"
-    local file="$2"
-
-    awk -v wanted="$key" '
-        BEGIN { IGNORECASE = 1 }
-        index($0, ":") > 0 {
-            line = $0
-            field = line
-            sub(/:.*/, "", field)
-
-            if (tolower(field) == tolower(wanted)) {
-                sub(/^[^:]*:[ \t]*/, "", line)
-                value = line
-            }
-        }
-        END {
-            if (value != "") {
-                print value
-            }
-        }
-    ' "$file"
-}
-
-nth_field() {
-    local key="$1"
-    local nth="$2"
-    local file="$3"
-
-    awk -v wanted="$key" -v target="$nth" '
-        BEGIN {
-            IGNORECASE = 1
-            count = 0
-        }
-        index($0, ":") > 0 {
-            line = $0
-            field = line
-            sub(/:.*/, "", field)
-
-            if (tolower(field) == tolower(wanted)) {
-                count++
-                if (count == target) {
-                    sub(/^[^:]*:[ \t]*/, "", line)
-                    print line
-                    exit
-                }
-            }
-        }
-    ' "$file"
-}
-
-compact_value() {
-    tr -d '[:space:]'
-}
-
-return_value_or_null() {
-    local value="$1"
-
-    if [ -n "$value" ]; then
-        echo "$value"
-    else
-        print_null
-    fi
-}
-
-extract_created_number() {
-    local value="$1"
-
-    if [[ "$value" == *"#"* ]]; then
-        echo "$value" | cut -d'#' -f2 | compact_value
-    else
-        print_null
-    fi
-}
-
-get_expiration_value() {
-    local file="$1"
-    local value
-
-    value="$(first_field "expires" "$file")"
-
-    if [ -z "$value" ]; then
-        value="$(first_field "Registry Expiry Date" "$file")"
-    fi
-
-    if [ -z "$value" ]; then
-        value="$(first_field "Expiration Date" "$file")"
-    fi
-
-    if [ -z "$value" ]; then
-        value="$(first_field "paid-till" "$file")"
-    fi
-
-    echo "$value" | compact_value
-}
-
-get_domain_info() {
-    local domain="$1"
-    local attr="$2"
-    local value
-    local created_line
-
-    prepare_cache_paths "$domain"
-
-    if ! cache_is_valid; then
-        refresh_cache_if_needed "$domain" >/dev/null 2>&1 || true
-    fi
-
-    if [ ! -s "$CACHE_FILE" ]; then
-        print_null
-        return 0
-    fi
-
-    case "$attr" in
-        nome)
-            value="$(first_field "domain" "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(first_field "Domain Name" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
-
-        status)
-            value="$(last_field "status" "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(first_field "Domain Status" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
-
-        dono)
-            value="$(first_field "owner" "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(first_field "Registrant Organization" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
-
-        donocnpj)
-            value="$(first_field "ownerid" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
-
-        dononome)
-            value="$(first_field "responsible" "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(first_field "Registrant Name" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
-
-        pais)
-            value="$(first_field "country" "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(first_field "Registrant Country" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
-
-        donoregistro)
-            value="$(first_field "owner-c" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
-
-        suporteregistro)
-            value="$(first_field "tech-c" "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(first_field "Tech Name" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
-
-        dns1)
-            value="$(nth_field "nserver" 1 "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(nth_field "Name Server" 1 "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
-
-        dns2)
-            value="$(nth_field "nserver" 2 "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(nth_field "Name Server" 2 "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
-
-        dns3)
-            value="$(nth_field "nserver" 3 "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(nth_field "Name Server" 3 "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
-
-        dns4)
-            value="$(nth_field "nserver" 4 "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(nth_field "Name Server" 4 "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
-
-        criado)
-            created_line="$(first_field "created" "$CACHE_FILE")"
-            [ -z "$created_line" ] && created_line="$(first_field "Creation Date" "$CACHE_FILE")"
-
-            if [ -n "$created_line" ]; then
-                echo "$created_line" | cut -d'#' -f1 | compact_value
-            else
-                print_null
-            fi
-            ;;
-
-        criadonumero)
-            created_line="$(first_field "created" "$CACHE_FILE")"
-            extract_created_number "$created_line"
-            ;;
-
-        alterado)
-            value="$(first_field "changed" "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(first_field "Updated Date" "$CACHE_FILE")"
-
-            if [ -n "$value" ]; then
-                echo "$value" | compact_value
-            else
-                print_null
-            fi
-            ;;
-
-        expira)
-            value="$(get_expiration_value "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
-
-        *)
-            print_null
-            ;;
-    esac
-}
-
-check_domain() {
-    local attr
-    local domain
-
-    attr="$1"
-    domain="$(normalize_domain "$2")"
-
-    if [ -z "$attr" ] || [ -z "$domain" ]; then
-        print_null
-        return 0
-    fi
-
-    if ! domain_exists "$domain"; then
-        print_null
-        return 0
-    fi
-
-    get_domain_info "$domain" "$attr"
-}
-
-check_domain "$METRIC" "$DOMAIN_RAW"
+## Funcionalidades
+
+- Monitoramento de informações WHOIS de domínios.
+- Cache local com TTL de 5 minutos.
+- Cache armazenado em:
+
+```text
+/tmp/zabbix_domain_cache
+```
+
+- Organização do cache por TLD.
+- Rate limit global de 5 segundos entre consultas WHOIS.
+- Enfileiramento automático com `flock`.
+- Prevenção de consultas simultâneas para o mesmo domínio.
+- Prevenção de timeout ao processar múltiplos domínios simultaneamente.
+- Compatível com Zabbix Agent legado.
+- Compatível com Zabbix Agent 2.
+- Instalador automático.
+- Template YAML para importação no Zabbix 7.0.
+
+---
+
+## Requisitos
+
+- Linux
+- Bash
+- `whois`
+- `flock`, disponível no pacote `util-linux`
+- Zabbix Agent ou Zabbix Agent 2
+
+---
+
+## Instalação
+
+Clone o repositório:
+
+```bash
+git clone https://github.com/SEU_USUARIO/zabbix-domain-monitor.git
+cd zabbix-domain-monitor
+```
+
+Execute o instalador:
+
+```bash
+sudo bash install.sh
+```
+
+O instalador realiza automaticamente as seguintes ações:
+
+1. Verifica dependências obrigatórias.
+2. Instala dependências quando possível.
+3. Copia o script principal para:
+
+```text
+/usr/local/bin/zabbix_domain_monitor.sh
+```
+
+4. Ajusta permissões de execução.
+5. Cria o diretório de cache:
+
+```text
+/tmp/zabbix_domain_cache
+```
+
+6. Ajusta permissões do cache.
+7. Copia o arquivo `userparameter_domain.conf` para o diretório do Zabbix Agent ou Zabbix Agent 2.
+8. Reinicia o serviço do Zabbix Agent ou Zabbix Agent 2, quando disponível.
+
+---
+
+## Uso manual
+
+O script principal recebe dois parâmetros:
+
+```bash
+zabbix_domain_monitor.sh <atributo> <dominio>
+```
+
+Exemplo consultando a data de expiração:
+
+```bash
+/usr/local/bin/zabbix_domain_monitor.sh expira empresa.com.br
+```
+
+Exemplo consultando o status do domínio:
+
+```bash
+/usr/local/bin/zabbix_domain_monitor.sh status empresa.com.br
+```
+
+Exemplo consultando servidores DNS:
+
+```bash
+/usr/local/bin/zabbix_domain_monitor.sh dns1 empresa.com.br
+/usr/local/bin/zabbix_domain_monitor.sh dns2 empresa.com.br
+```
+
+---
+
+## Uso com Zabbix Agent
+
+Este projeto utiliza UserParameters no seguinte padrão:
+
+```text
+domain.<atributo>[dominio]
+```
+
+Exemplos:
+
+```text
+domain.expira[empresa.com.br]
+domain.status[empresa.com.br]
+domain.dono[empresa.com.br]
+domain.dns1[empresa.com.br]
+```
+
+Teste com Zabbix Agent legado:
+
+```bash
+zabbix_agentd -t 'domain.expira[empresa.com.br]'
+```
+
+Teste com Zabbix Agent 2:
+
+```bash
+zabbix_agent2 -t 'domain.expira[empresa.com.br]'
+```
+
+---
+
+## Métricas disponíveis
+
+| Chave Zabbix | Atributo interno | Descrição |
+|---|---|---|
+| `domain.nome[dominio]` | `nome` | Nome do domínio |
+| `domain.status[dominio]` | `status` | Status do domínio |
+| `domain.dono[dominio]` | `dono` | Proprietário ou razão social |
+| `domain.donocnpj[dominio]` | `donocnpj` | Identificador do proprietário, quando disponível |
+| `domain.dononome[dominio]` | `dononome` | Nome do responsável pelo domínio |
+| `domain.pais[dominio]` | `pais` | País do registro |
+| `domain.donoregistro[dominio]` | `donoregistro` | Código de contato do proprietário |
+| `domain.suporteregistro[dominio]` | `suporteregistro` | Código de contato técnico |
+| `domain.dns1[dominio]` | `dns1` | Primeiro servidor DNS |
+| `domain.dns2[dominio]` | `dns2` | Segundo servidor DNS |
+| `domain.dns3[dominio]` | `dns3` | Terceiro servidor DNS |
+| `domain.dns4[dominio]` | `dns4` | Quarto servidor DNS |
+| `domain.criado[dominio]` | `criado` | Data de criação do domínio |
+| `domain.criadonumero[dominio]` | `criadonumero` | Número associado ao campo de criação, quando disponível |
+| `domain.alterado[dominio]` | `alterado` | Data da última alteração |
+| `domain.expira[dominio]` | `expira` | Data de expiração do domínio |
+
+---
+
+## Template Zabbix
+
+O template está disponível em:
+
+```text
+zabbix_template/template_domain_monitor.yaml
+```
+
+Template incluído:
+
+```text
+BERNOULLI - Monitor de Dominios
+```
+
+Macro principal do domínio:
+
+```text
+{$DOMINIO.NOME}
+```
+
+Exemplo de valor:
+
+```text
+empresa.com.br
+```
+
+Macros de alerta de expiração:
+
+| Macro | Valor padrão | Descrição |
+|---|---:|---|
+| `{$ALERTA.DISATRE.EXPIRACAO}` | `2` | Alerta crítico/desastre para domínios próximos do vencimento |
+| `{$ALERTA.EXPIRACAO}` | `30` | Alerta alto para domínios próximos do vencimento |
+| `{$ALERTA.INFORMATIVO.EXPIRACAO}` | `60` | Alerta informativo para domínios próximos do vencimento |
+
+> Observação: a macro `{$ALERTA.DISATRE.EXPIRACAO}` foi mantida com esse nome para preservar compatibilidade com o template existente.
+
+---
+
+## Funcionamento do cache
+
+O script utiliza cache local para evitar consultas WHOIS repetidas.
+
+Diretório padrão:
+
+```text
+/tmp/zabbix_domain_cache
+```
+
+O cache é organizado por TLD. Exemplo:
+
+```text
+/tmp/zabbix_domain_cache/br/empresa.com.br
+/tmp/zabbix_domain_cache/com/example.com
+```
+
+O TTL padrão do cache é de 5 minutos.
+
+---
+
+## Rate limit
+
+Para evitar bloqueios por excesso de consultas WHOIS, o projeto aplica um rate limit global de 5 segundos entre consultas.
+
+O controle é feito por lock global em:
+
+```text
+/tmp/zabbix_domain_cache/.ratelimit_lock
+```
+
+E por controle de tempo em:
+
+```text
+/tmp/zabbix_domain_cache/.ratelimit_timer
+```
+
+---
+
+## Enfileiramento automático
+
+Quando vários domínios são consultados ao mesmo tempo e o cache está expirado, as consultas são enfileiradas automaticamente com `flock`.
+
+Isso evita:
+
+- Execuções simultâneas descontroladas.
+- Sobrecarga no servidor WHOIS.
+- Bloqueio por rate limit externo.
+- Timeouts em massa no Zabbix Agent.
+
+---
+
+## Validação de domínio
+
+O script valida o domínio antes da consulta.
+
+São rejeitados domínios:
+
+- Vazios.
+- Com mais de 253 caracteres.
+- Sem ponto.
+- Começando com ponto.
+- Terminando com ponto.
+- Com caracteres inválidos.
+- Com labels maiores que 63 caracteres.
+- Com labels começando ou terminando com hífen.
+
+---
+
+## Estrutura do repositório
+
+```text
+zabbix-domain-monitor/
+├── README.md
+├── install.sh
+├── zabbix_domain_monitor.sh
+├── zabbix_agentd.d/
+│   └── userparameter_domain.conf
+└── zabbix_template/
+    └── template_domain_monitor.yaml
+```
+
+---
+
+## Arquivos principais
+
+| Arquivo | Descrição |
+|---|---|
+| `README.md` | Documentação do projeto |
+| `install.sh` | Instalador automático |
+| `zabbix_domain_monitor.sh` | Script principal de consulta WHOIS |
+| `zabbix_agentd.d/userparameter_domain.conf` | Configuração UserParameter do Zabbix |
+| `zabbix_template/template_domain_monitor.yaml` | Template para importação no Zabbix |
+
+---
+
+## Teste de concorrência
+
+Para validar o enfileiramento e o rate limit:
+
+```bash
+for d in empresa.com.br exemplo.com.br registro.br zabbix.com google.com; do
+  /usr/local/bin/zabbix_domain_monitor.sh expira "$d" &
+done
+
+wait
+```
+
+As consultas devem ser serializadas pelo lock global, respeitando o intervalo mínimo de 5 segundos entre execuções WHOIS.
+
+---
+
+## Observações sobre timeout no Zabbix
+
+Em ambientes com muitos domínios e cache frio, recomenda-se avaliar o parâmetro `Timeout` no Zabbix Agent.
+
+Exemplo:
+
+```ini
+Timeout=30
+```
+
+Ou, em ambientes maiores:
+
+```ini
+Timeout=60
+```
+
+Depois de alterar esse parâmetro, reinicie o agente Zabbix.
+
+---
+
+## Licença
+
+MIT
