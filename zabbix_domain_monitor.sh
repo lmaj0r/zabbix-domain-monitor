@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 # +===============================================================================+
 # |                       ______     _     _     _                                |
 # |                      |___  /    | |   | |   (_)                               |
@@ -20,7 +21,6 @@
 # |Acesse o projeto em https://github.com/lmaj0r/zabbix-domain-monitor            |
 # +===============================================================================+
 
-
 METRIC="${1:-}"
 DOMAIN="${2:-}"
 
@@ -35,6 +35,10 @@ GLOBAL_TIMER="${CACHE_DIR}/.ratelimit_timer"
 
 print_null() {
     echo "null"
+}
+
+print_empty() {
+    echo "Vazio"
 }
 
 validate_metric() {
@@ -287,6 +291,16 @@ return_value_or_null() {
     fi
 }
 
+return_dns_value_or_empty() {
+    local value="$1"
+
+    if [ -n "$value" ]; then
+        echo "$value"
+    else
+        print_empty
+    fi
+}
+
 extract_created_number() {
     local value="$1"
 
@@ -386,25 +400,25 @@ get_domain_info() {
         dns1)
             value="$(nth_field "nserver" 1 "$CACHE_FILE")"
             [ -z "$value" ] && value="$(nth_field "Name Server" 1 "$CACHE_FILE")"
-            return_value_or_null "$value"
+            return_dns_value_or_empty "$value"
             ;;
 
         dns2)
             value="$(nth_field "nserver" 2 "$CACHE_FILE")"
             [ -z "$value" ] && value="$(nth_field "Name Server" 2 "$CACHE_FILE")"
-            return_value_or_null "$value"
+            return_dns_value_or_empty "$value"
             ;;
 
         dns3)
             value="$(nth_field "nserver" 3 "$CACHE_FILE")"
             [ -z "$value" ] && value="$(nth_field "Name Server" 3 "$CACHE_FILE")"
-            return_value_or_null "$value"
+            return_dns_value_or_empty "$value"
             ;;
 
         dns4)
             value="$(nth_field "nserver" 4 "$CACHE_FILE")"
             [ -z "$value" ] && value="$(nth_field "Name Server" 4 "$CACHE_FILE")"
-            return_value_or_null "$value"
+            return_dns_value_or_empty "$value"
             ;;
 
         criado)
