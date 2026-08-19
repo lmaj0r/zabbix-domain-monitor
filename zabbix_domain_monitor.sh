@@ -1,14 +1,5 @@
 #!/usr/bin/env bash
 
-# zabbix-domain-monitor
-# Monitoramento WHOIS com cache local, rate limit global e enfileiramento via flock.
-#
-# Uso:
-#   zabbix_domain_monitor.sh <atributo> <dominio>
-#
-# Exemplo:
-#   zabbix_domain_monitor.sh expira empresa.com.br
-
 METRIC="${1:-}"
 DOMAIN_RAW="${2:-}"
 
@@ -26,11 +17,11 @@ print_null() {
 }
 
 normalize_domain() {
-    echo "\$1" | tr '[:upper:]' '[:lower:]'
+    echo "$1" | tr '[:upper:]' '[:lower:]'
 }
 
 domain_exists() {
-    local domain="\$1"
+    local domain="$1"
     local label
 
     [ -n "$domain" ] || return 1
@@ -62,7 +53,7 @@ prepare_base_cache() {
 }
 
 prepare_cache_paths() {
-    local domain="\$1"
+    local domain="$1"
     local tld
     local safe_domain
 
@@ -92,7 +83,7 @@ cache_is_valid() {
 }
 
 whois_output_is_valid() {
-    local file="\$1"
+    local file="$1"
 
     [ -s "$file" ] || return 1
 
@@ -104,8 +95,8 @@ whois_output_is_valid() {
 }
 
 run_whois() {
-    local domain="\$1"
-    local tmp_file="\$2"
+    local domain="$1"
+    local tmp_file="$2"
 
     if command -v timeout >/dev/null 2>&1; then
         timeout "$WHOIS_TIMEOUT" whois "$domain" > "$tmp_file" 2>/dev/null
@@ -115,7 +106,7 @@ run_whois() {
 }
 
 refresh_cache_if_needed() {
-    local domain="\$1"
+    local domain="$1"
     local last_exec
     local now
     local diff
@@ -178,13 +169,13 @@ refresh_cache_if_needed() {
 }
 
 first_field() {
-    local key="\$1"
-    local file="\$2"
+    local key="$1"
+    local file="$2"
 
     awk -v wanted="$key" '
         BEGIN { IGNORECASE = 1 }
-        index(\$0, ":") > 0 {
-            line = \$0
+        index($0, ":") > 0 {
+            line = $0
             field = line
             sub(/:.*/, "", field)
 
@@ -198,13 +189,13 @@ first_field() {
 }
 
 last_field() {
-    local key="\$1"
-    local file="\$2"
+    local key="$1"
+    local file="$2"
 
     awk -v wanted="$key" '
         BEGIN { IGNORECASE = 1 }
-        index(\$0, ":") > 0 {
-            line = \$0
+        index($0, ":") > 0 {
+            line = $0
             field = line
             sub(/:.*/, "", field)
 
@@ -222,17 +213,17 @@ last_field() {
 }
 
 nth_field() {
-    local key="\$1"
-    local nth="\$2"
-    local file="\$3"
+    local key="$1"
+    local nth="$2"
+    local file="$3"
 
     awk -v wanted="$key" -v target="$nth" '
         BEGIN {
             IGNORECASE = 1
             count = 0
         }
-        index(\$0, ":") > 0 {
-            line = \$0
+        index($0, ":") > 0 {
+            line = $0
             field = line
             sub(/:.*/, "", field)
 
@@ -253,7 +244,7 @@ compact_value() {
 }
 
 return_value_or_null() {
-    local value="\$1"
+    local value="$1"
 
     if [ -n "$value" ]; then
         echo "$value"
@@ -263,7 +254,7 @@ return_value_or_null() {
 }
 
 extract_created_number() {
-    local value="\$1"
+    local value="$1"
 
     if [[ "$value" == *"#"* ]]; then
         echo "$value" | cut -d'#' -f2 | compact_value
@@ -273,7 +264,7 @@ extract_created_number() {
 }
 
 get_expiration_value() {
-    local file="\$1"
+    local file="$1"
     local value
 
     value="$(first_field "expires" "$file")"
@@ -294,8 +285,8 @@ get_expiration_value() {
 }
 
 get_domain_info() {
-    local domain="\$1"
-    local attr="\$2"
+    local domain="$1"
+    local attr="$2"
     local value
     local created_line
 
@@ -424,8 +415,8 @@ check_domain() {
     local attr
     local domain
 
-    attr="\$1"
-    domain="$(normalize_domain "\$2")"
+    attr="$1"
+    domain="$(normalize_domain "$2")"
 
     if [ -z "$attr" ] || [ -z "$domain" ]; then
         print_null
@@ -439,3 +430,5 @@ check_domain() {
 
     get_domain_info "$domain" "$attr"
 }
+
+check_domain "$METRIC" "$DOMAIN_RAW"
