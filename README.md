@@ -60,26 +60,6 @@ Acesse o diretório do projeto:
 cd zabbix-domain-monitor
 ```
 
-Configure o Git para baixar somente os arquivos necessários para instalação:
-
-```bash
-git sparse-checkout init --no-cone
-```
-
-```bash
-git sparse-checkout set README.md install.sh zabbix_domain_monitor.sh zabbix_agentd.d/*
-```
-
-Faça o checkout dos arquivos:
-
-```bash
-git checkout main
-```
-
-Ao final, a pasta `zabbix_template` não será baixada no servidor.
-
-Antes de executar o instalador, aplique permissão de execução ao arquivo:
-
 ```bash
 sudo chmod +x install.sh
 ```
@@ -113,30 +93,6 @@ O instalador realiza automaticamente as seguintes ações:
 9. Ajusta permissões do cache.
 10. Copia o arquivo `userparameter_domain.conf` para o diretório do Zabbix Agent ou Zabbix Agent 2.
 11. Reinicia o serviço do Zabbix Agent ou Zabbix Agent 2, quando disponível.
-
----
-
-## Instalação alternativa com clone completo
-
-Caso prefira baixar todo o repositório, incluindo a pasta do template, utilize:
-
-```bash
-git clone https://github.com/lmaj0r/zabbix-domain-monitor.git
-```
-
-```bash
-cd zabbix-domain-monitor
-```
-
-```bash
-sudo chmod +x install.sh
-```
-
-```bash
-sudo ./install.sh
-```
-
-> Observação: neste modo, a pasta `zabbix_template` também será baixada localmente. Porém, o template ainda deve ser importado manualmente pela interface web do Zabbix.
 
 ---
 
