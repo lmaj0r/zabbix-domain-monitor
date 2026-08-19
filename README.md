@@ -24,3 +24,15 @@ Execute como **root**:
 git clone <repo>
 cd zabbix-domain-monitor
 sudo bash install.sh
+
+
+
+zabbix-domain-monitor/
+├── README.md
+├── install.sh
+├── zabbix_domain_monitor.sh
+├── .gitignore
+├── zabbix_agentd.d/
+│   └── userparameter_domain.conf
+└── zabbix_template/
+    └── template_domain_monitor.yaml
