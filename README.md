@@ -24,7 +24,7 @@ Execute como **root**:
 git clone <repo>
 cd zabbix-domain-monitor
 sudo bash install.sh
-
+```
 
 
 zabbix-domain-monitor/
