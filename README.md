@@ -27,7 +27,7 @@ sudo bash install.sh
 ```
 
 
-======================================================
+
 
 **O instalador realiza as seguintes ações:**
 
@@ -42,6 +42,9 @@ sudo bash install.sh
 ```
 4. Copia o arquivo de UserParameter para o diretório do Zabbix Agent ou Zabbix Agent 2.
 5. Reinicia o serviço do Zabbix Agent quando disponível.
+
+
+
 
 **Métricas disponíveis**  
 Métrica	 = Descrição  
@@ -63,7 +66,6 @@ alterado = Data da última alteração
 expira = Data de expiração do domínio  
 
 
-======================================================
 
 **Exemplo de uso manual**
 
