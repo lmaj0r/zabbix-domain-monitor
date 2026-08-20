@@ -21,6 +21,8 @@
 # |Acesse o projeto em https://github.com/lmaj0r/zabbix-domain-monitor            |
 # +===============================================================================+
 
+#!/usr/bin/env bash
+
 set -o pipefail
 
 CACHE_DIR="${ZBX_DOMAIN_CACHE_DIR:-/var/tmp/zabbix_domain_monitor}"
@@ -277,6 +279,16 @@ json_escape() {
     printf '%s' "$value"
 }
 
+json_string_or_null() {
+    local value="$1"
+
+    if [ -z "$value" ] || [ "$value" = "Vazio" ]; then
+        printf 'null'
+    else
+        printf '"%s"' "$(json_escape "$value")"
+    fi
+}
+
 extract_date_value() {
     local value="$1"
 
@@ -453,9 +465,83 @@ get_name_servers() {
     ' "$file"
 }
 
+get_com_domain_data_json() {
+    local domain="$1"
+    local cache_file="$2"
+
+    local nome
+    local dono
+    local criado_raw
+    local criado
+    local alterado_raw
+    local alterado
+    local expira_raw
+    local expira
+    local dns1
+    local dns2
+    local ns_list
+
+    nome="$(get_first_of_fields "$cache_file" "Domain Name")"
+    nome="${nome:-$domain}"
+    nome="$(printf '%s' "$nome" | tr '[:upper:]' '[:lower:]')"
+
+    dono="$(get_first_of_fields "$cache_file" "Registry Domain ID")"
+
+    alterado_raw="$(get_first_of_fields "$cache_file" "Updated Date")"
+    alterado="$(extract_date_value "$alterado_raw")"
+
+    criado_raw="$(get_first_of_fields "$cache_file" "Creation Date")"
+    criado="$(extract_date_value "$criado_raw")"
+
+    expira_raw="$(get_first_of_fields "$cache_file" "Registry Expiry Date")"
+    expira="$(extract_date_value "$expira_raw")"
+
+    mapfile -t ns_list < <(get_name_servers "$cache_file")
+
+    dns1="${ns_list[0]}"
+    dns2="${ns_list[1]}"
+
+    printf '{'
+    printf '"nome":'
+    json_string_or_null "$nome"
+    printf ','
+    printf '"status":"Não Suportado",'
+    printf '"dono":'
+    json_string_or_null "$dono"
+    printf ','
+    printf '"donocnpj":"Não Suportado",'
+    printf '"dononome":"Não Suportado",'
+    printf '"pais":"Não Suportado",'
+    printf '"donoregistro":"Não Suportado",'
+    printf '"suporteregistro":"Não Suportado",'
+    printf '"dns1":'
+    json_string_or_null "$dns1"
+    printf ','
+    printf '"dns2":'
+    json_string_or_null "$dns2"
+    printf ','
+    printf '"dns3":null,'
+    printf '"dns4":null,'
+    printf '"criado":'
+    json_string_or_null "$criado"
+    printf ','
+    printf '"criadonumero":"Não Suportado",'
+    printf '"alterado":'
+    json_string_or_null "$alterado"
+    printf ','
+    printf '"expira":'
+    json_string_or_null "$expira"
+    printf '}\n'
+}
+
 get_domain_data_json() {
     local domain="$1"
     local cache_file="$2"
+
+    if is_com_domain "$domain"; then
+        get_com_domain_data_json "$domain" "$cache_file"
+        return 0
+    fi
 
     local nome
     local status
@@ -481,7 +567,6 @@ get_domain_data_json() {
 
     nome="$(get_first_of_fields "$cache_file" "domain" "Domain Name")"
     nome="$(field_or_vazio "${nome:-$domain}")"
-    nome="$(printf '%s' "$nome" | tr '[:upper:]' '[:lower:]')"
 
     status="$(get_status_values "$cache_file")"
     status="$(field_or_vazio "$status")"
@@ -499,19 +584,9 @@ get_domain_data_json() {
     pais="$(field_or_vazio "$pais")"
 
     donoregistro="$(get_first_of_fields "$cache_file" "owner-c" "Registrant Contact")"
-
-    if [ -z "$donoregistro" ] && is_com_domain "$domain"; then
-        donoregistro="$(get_first_of_fields "$cache_file" "Registrar")"
-    fi
-
     donoregistro="$(field_or_vazio "$donoregistro")"
 
     suporteregistro="$(get_first_of_fields "$cache_file" "tech-c" "Tech Contact")"
-
-    if [ -z "$suporteregistro" ] && is_com_domain "$domain"; then
-        suporteregistro="$(get_first_of_fields "$cache_file" "Registrar WHOIS Server")"
-    fi
-
     suporteregistro="$(field_or_vazio "$suporteregistro")"
 
     mapfile -t ns_list < <(get_name_servers "$cache_file")
@@ -526,11 +601,6 @@ get_domain_data_json() {
     criadonumero="$(extract_created_number "$criado_raw")"
 
     alterado_raw="$(get_first_of_fields "$cache_file" "changed" "Updated Date" "Last Updated On")"
-
-    if [ -z "$alterado_raw" ] && is_com_domain "$domain"; then
-        alterado_raw="$(get_first_of_fields "$cache_file" "Updated Date")"
-    fi
-
     alterado="$(extract_date_value "$alterado_raw")"
 
     expira_raw="$(get_first_of_fields "$cache_file" "expires" "Registry Expiry Date" "Registrar Registration Expiration Date" "Expiration Date")"
