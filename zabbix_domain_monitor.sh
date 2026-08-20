@@ -21,31 +21,108 @@
 # |Acesse o projeto em https://github.com/lmaj0r/zabbix-domain-monitor            |
 # +===============================================================================+
 
-METRIC="${1:-}"
-DOMAIN="${2:-}"
+set -o pipefail
 
-CACHE_DIR="/tmp/zabbix_domain_cache"
-CACHE_TTL=300
-RATE_LIMIT_SECONDS=5
-LOCK_TIMEOUT=60
-WHOIS_TIMEOUT=25
+CACHE_DIR="${ZBX_DOMAIN_CACHE_DIR:-/var/tmp/zabbix_domain_monitor}"
+CACHE_TTL_SECONDS="${ZBX_DOMAIN_CACHE_TTL_SECONDS:-86400}"
+WHOIS_TIMEOUT_SECONDS="${ZBX_DOMAIN_WHOIS_TIMEOUT_SECONDS:-20}"
+LOCK_TIMEOUT_SECONDS="${ZBX_DOMAIN_LOCK_TIMEOUT_SECONDS:-20}"
+RATE_LIMIT_SECONDS="${ZBX_DOMAIN_RATE_LIMIT_SECONDS:-2}"
 
-GLOBAL_LOCK="${CACHE_DIR}/.ratelimit_lock"
-GLOBAL_TIMER="${CACHE_DIR}/.ratelimit_timer"
+GLOBAL_LOCK_FILE="${CACHE_DIR}/.global_whois.lock"
+LAST_WHOIS_FILE="${CACHE_DIR}/.last_whois"
+
 
 print_null() {
     echo "null"
 }
 
-print_empty() {
+print_vazio() {
     echo "Vazio"
+}
+
+ensure_cache_dir() {
+    mkdir -p "$CACHE_DIR" 2>/dev/null || return 1
+
+    chmod 0777 "$CACHE_DIR" 2>/dev/null || true
+
+    return 0
+}
+
+cache_key() {
+    local domain="$1"
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        printf '%s' "$domain" | sha256sum | awk '{print $1}'
+    else
+        printf '%s' "$domain" | sed 's/[^a-zA-Z0-9._-]/_/g'
+    fi
+}
+
+cache_path() {
+    local domain="$1"
+    local key
+
+    key="$(cache_key "$domain")"
+    printf '%s/%s.whois\n' "$CACHE_DIR" "$key"
+}
+
+lock_path() {
+    local domain="$1"
+    local key
+
+    key="$(cache_key "$domain")"
+    printf '%s/%s.lock\n' "$CACHE_DIR" "$key"
+}
+
+cache_is_valid() {
+    local cache_file="$1"
+    local now
+    local mtime
+    local age
+
+    [ -s "$cache_file" ] || return 1
+
+    now="$(date +%s)"
+    mtime="$(stat -c %Y "$cache_file" 2>/dev/null || echo 0)"
+
+    [ "$mtime" -gt 0 ] || return 1
+
+    age=$((now - mtime))
+
+    [ "$age" -lt "$CACHE_TTL_SECONDS" ]
+}
+
+
+normalize_domain() {
+    local domain="$1"
+
+    domain="$(printf '%s' "$domain" | tr '[:upper:]' '[:lower:]')"
+
+    domain="${domain#http://}"
+    domain="${domain#https://}"
+
+    domain="${domain%%/*}"
+    domain="${domain%%\?*}"
+    domain="${domain%%:*}"
+    domain="${domain%.}"
+
+    domain="$(printf '%s' "$domain" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+
+    printf '%s\n' "$domain"
+}
+
+is_valid_domain() {
+    local domain="$1"
+
+    [[ "$domain" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$ ]]
 }
 
 validate_metric() {
     local metric="$1"
 
     case "$metric" in
-        nome|status|dono|donocnpj|dononome|pais|donoregistro|suporteregistro|dns1|dns2|dns3|dns4|criado|criadonumero|alterado|expira)
+        dados)
             return 0
             ;;
         *)
@@ -54,434 +131,411 @@ validate_metric() {
     esac
 }
 
-normalize_domain() {
-    echo "$1" | tr '[:upper:]' '[:lower:]'
-}
 
-domain_exists() {
-    local domain="$1"
-    local label
-
-    [ -n "$domain" ] || return 1
-    [ "${#domain}" -le 253 ] || return 1
-
-    [[ "$domain" != .* ]] || return 1
-    [[ "$domain" != *. ]] || return 1
-    [[ "$domain" == *.* ]] || return 1
-    [[ "$domain" =~ ^[a-zA-Z0-9.-]+$ ]] || return 1
-
-    IFS='.' read -r -a labels <<< "$domain"
-
-    for label in "${labels[@]}"; do
-        [ -n "$label" ] || return 1
-        [ "${#label}" -le 63 ] || return 1
-        [[ "$label" != -* ]] || return 1
-        [[ "$label" != *- ]] || return 1
-    done
-
-    return 0
-}
-
-prepare_base_cache() {
-    mkdir -p "$CACHE_DIR"
-    chmod 1777 "$CACHE_DIR" 2>/dev/null || true
-
-    touch "$GLOBAL_LOCK" "$GLOBAL_TIMER" 2>/dev/null || true
-    chmod 666 "$GLOBAL_LOCK" "$GLOBAL_TIMER" 2>/dev/null || true
-}
-
-prepare_cache_paths() {
-    local domain="$1"
-    local tld
-    local safe_domain
-
-    tld="${domain##*.}"
-    safe_domain="$(echo "$domain" | sed 's/[^a-zA-Z0-9._-]/_/g')"
-
-    TLD_CACHE_DIR="${CACHE_DIR}/${tld}"
-    CACHE_FILE="${TLD_CACHE_DIR}/${safe_domain}"
-    LOCK_FILE="${TLD_CACHE_DIR}/${safe_domain}.lock"
-
-    mkdir -p "$TLD_CACHE_DIR"
-    chmod 1777 "$TLD_CACHE_DIR" 2>/dev/null || true
-}
-
-cache_is_valid() {
-    [ -s "$CACHE_FILE" ] || return 1
-
+apply_rate_limit_locked() {
     local now
-    local file_mtime
-    local age
+    local last
+    local elapsed
+    local wait_time
 
     now="$(date +%s)"
-    file_mtime="$(stat -c %Y "$CACHE_FILE" 2>/dev/null || echo 0)"
-    age=$((now - file_mtime))
+    last="$(cat "$LAST_WHOIS_FILE" 2>/dev/null || echo 0)"
 
-    [ "$age" -le "$CACHE_TTL" ]
-}
-
-whois_output_is_valid() {
-    local file="$1"
-
-    [ -s "$file" ] || return 1
-
-    if grep -Eiq 'timed out|timeout|connection refused|temporary failure|try again|service unavailable|rate limit exceeded|quota exceeded' "$file"; then
-        return 1
+    if ! [[ "$last" =~ ^[0-9]+$ ]]; then
+        last=0
     fi
 
-    return 0
+    elapsed=$((now - last))
+
+    if [ "$elapsed" -lt "$RATE_LIMIT_SECONDS" ]; then
+        wait_time=$((RATE_LIMIT_SECONDS - elapsed))
+        sleep "$wait_time"
+    fi
+
+    date +%s > "$LAST_WHOIS_FILE" 2>/dev/null || true
+    chmod 0666 "$LAST_WHOIS_FILE" 2>/dev/null || true
 }
 
-run_whois() {
+apply_rate_limit() {
+    if command -v flock >/dev/null 2>&1; then
+        (
+            flock -w "$LOCK_TIMEOUT_SECONDS" 201 2>/dev/null || exit 0
+            apply_rate_limit_locked
+        ) 201>"$GLOBAL_LOCK_FILE"
+    else
+        apply_rate_limit_locked
+    fi
+}
+
+execute_whois() {
     local domain="$1"
-    local tmp_file="$2"
+
+    command -v whois >/dev/null 2>&1 || return 127
 
     if command -v timeout >/dev/null 2>&1; then
-        timeout "$WHOIS_TIMEOUT" whois "$domain" > "$tmp_file" 2>/dev/null
+        timeout "$WHOIS_TIMEOUT_SECONDS" whois "$domain"
     else
-        whois "$domain" > "$tmp_file" 2>/dev/null
+        whois "$domain"
     fi
 }
 
-refresh_cache_if_needed() {
+refresh_cache_unlocked() {
     local domain="$1"
-    local last_exec
-    local now
-    local diff
-    local sleep_time
+    local cache_file
     local tmp_file
 
-    exec 200>"$LOCK_FILE" || return 1
+    cache_file="$(cache_path "$domain")"
 
-    if ! flock -w "$LOCK_TIMEOUT" 200; then
-        return 1
-    fi
-
-    if cache_is_valid; then
-        flock -u 200
+    if cache_is_valid "$cache_file"; then
         return 0
     fi
 
-    exec 201>"$GLOBAL_LOCK" || {
-        flock -u 200
-        return 1
-    }
+    tmp_file="$(mktemp "${cache_file}.tmp.XXXXXX" 2>/dev/null)"
 
-    if ! flock -w "$LOCK_TIMEOUT" 201; then
-        flock -u 200
-        return 1
+    if [ -z "$tmp_file" ]; then
+        tmp_file="${cache_file}.tmp.$$"
     fi
 
-    last_exec="$(cat "$GLOBAL_TIMER" 2>/dev/null || echo 0)"
+    apply_rate_limit
 
-    if ! [[ "$last_exec" =~ ^[0-9]+$ ]]; then
-        last_exec=0
+    if execute_whois "$domain" > "$tmp_file" 2>/dev/null && [ -s "$tmp_file" ]; then
+        mv "$tmp_file" "$cache_file" 2>/dev/null || {
+            rm -f "$tmp_file" 2>/dev/null || true
+            return 1
+        }
+
+        chmod 0666 "$cache_file" 2>/dev/null || true
+        return 0
     fi
 
-    now="$(date +%s)"
-    diff=$((now - last_exec))
+    rm -f "$tmp_file" 2>/dev/null || true
 
-    if [ "$diff" -lt "$RATE_LIMIT_SECONDS" ]; then
-        sleep_time=$((RATE_LIMIT_SECONDS - diff))
-        sleep "$sleep_time"
+    if [ -s "$cache_file" ]; then
+        return 0
     fi
 
-    tmp_file="${CACHE_FILE}.tmp.$$"
+    return 1
+}
 
-    run_whois "$domain" "$tmp_file"
+refresh_cache() {
+    local domain="$1"
+    local lock_file
 
-    date +%s > "$GLOBAL_TIMER" 2>/dev/null || true
-    chmod 666 "$GLOBAL_TIMER" 2>/dev/null || true
+    lock_file="$(lock_path "$domain")"
 
-    if whois_output_is_valid "$tmp_file"; then
-        mv "$tmp_file" "$CACHE_FILE"
-        chmod 666 "$CACHE_FILE" 2>/dev/null || true
+    if command -v flock >/dev/null 2>&1; then
+        (
+            flock -w "$LOCK_TIMEOUT_SECONDS" 200 2>/dev/null || exit 1
+            refresh_cache_unlocked "$domain"
+        ) 200>"$lock_file"
     else
-        rm -f "$tmp_file"
+        refresh_cache_unlocked "$domain"
     fi
+}
 
-    flock -u 201
-    flock -u 200
+whois_has_domain_data() {
+    local cache_file="$1"
+
+    [ -s "$cache_file" ] || return 1
+
+    if grep -Eiq 'no match for|not found|no data found|no entries found|object does not exist|domain not found|status:[[:space:]]*free' "$cache_file"; then
+        return 1
+    fi
 
     return 0
 }
 
-first_field() {
-    local key="$1"
-    local file="$2"
+trim() {
+    sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
 
-    awk -v wanted="$key" '
-        BEGIN { IGNORECASE = 1 }
-        index($0, ":") > 0 {
+field_or_vazio() {
+    local value="$1"
+
+    if [ -z "$value" ]; then
+        print_vazio
+    else
+        printf '%s\n' "$value"
+    fi
+}
+
+json_escape() {
+    local value="$1"
+
+    value="${value//\\/\\\\}"
+    value="${value//\"/\\\"}"
+    value="${value//$'\n'/ }"
+    value="${value//$'\r'/ }"
+    value="${value//$'\t'/ }"
+
+    printf '%s' "$value"
+}
+
+extract_date_value() {
+    local value="$1"
+
+    if [ -z "$value" ]; then
+        print_vazio
+        return 0
+    fi
+
+    if printf '%s' "$value" | grep -Eq '[0-9]{8}'; then
+        printf '%s\n' "$value" | grep -Eo '[0-9]{8}' | head -n 1
+        return 0
+    fi
+
+    if printf '%s' "$value" | grep -Eq '[0-9]{4}-[0-9]{2}-[0-9]{2}'; then
+        printf '%s\n' "$value" | grep -Eo '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -n 1
+        return 0
+    fi
+
+    printf '%s\n' "$value" | trim
+}
+
+extract_created_number() {
+    local value="$1"
+    local number
+
+    if [ -z "$value" ]; then
+        print_vazio
+        return 0
+    fi
+
+    if printf '%s' "$value" | grep -q '#'; then
+        number="$(printf '%s' "$value" | sed 's/^.*#//' | trim)"
+
+        if [ -n "$number" ]; then
+            printf '%s\n' "$number"
+            return 0
+        fi
+    fi
+
+    print_vazio
+}
+
+get_first_field_value() {
+    local file="$1"
+    local key="$2"
+
+    awk -v key="$key" '
+        BEGIN {
+            wanted = tolower(key)
+        }
+
+        {
             line = $0
-            field = line
-            sub(/:.*/, "", field)
+            sub(/\r$/, "", line)
 
-            if (tolower(field) == tolower(wanted)) {
-                sub(/^[^:]*:[ \t]*/, "", line)
-                print line
+            pos = index(line, ":")
+            if (pos <= 0) {
+                next
+            }
+
+            field = substr(line, 1, pos - 1)
+            value = substr(line, pos + 1)
+
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", field)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+
+            if (tolower(field) == wanted && value != "") {
+                print value
                 exit
             }
         }
     ' "$file"
 }
 
-last_field() {
-    local key="$1"
-    local file="$2"
+get_first_of_fields() {
+    local file="$1"
+    shift
 
-    awk -v wanted="$key" '
-        BEGIN { IGNORECASE = 1 }
-        index($0, ":") > 0 {
-            line = $0
-            field = line
-            sub(/:.*/, "", field)
+    local key
+    local value
 
-            if (tolower(field) == tolower(wanted)) {
-                sub(/^[^:]*:[ \t]*/, "", line)
-                value = line
-            }
-        }
-        END {
-            if (value != "") {
-                print value
-            }
-        }
-    ' "$file"
+    for key in "$@"; do
+        value="$(get_first_field_value "$file" "$key")"
+
+        if [ -n "$value" ]; then
+            printf '%s\n' "$value"
+            return 0
+        fi
+    done
+
+    return 1
 }
 
-nth_field() {
-    local key="$1"
-    local nth="$2"
-    local file="$3"
+get_name_servers() {
+    local file="$1"
 
-    awk -v wanted="$key" -v target="$nth" '
-        BEGIN {
-            IGNORECASE = 1
-            count = 0
-        }
-        index($0, ":") > 0 {
+    awk '
+        {
             line = $0
-            field = line
-            sub(/:.*/, "", field)
+            sub(/\r$/, "", line)
 
-            if (tolower(field) == tolower(wanted)) {
-                count++
-                if (count == target) {
-                    sub(/^[^:]*:[ \t]*/, "", line)
-                    print line
-                    exit
+            pos = index(line, ":")
+            if (pos <= 0) {
+                next
+            }
+
+            field = substr(line, 1, pos - 1)
+            value = substr(line, pos + 1)
+
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", field)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+
+            field_lower = tolower(field)
+
+            if (field_lower == "nserver" || field_lower == "name server") {
+                split(value, parts, /[[:space:]]+/)
+                ns = parts[1]
+
+                gsub(/\.$/, "", ns)
+
+                ns_key = tolower(ns)
+
+                if (ns != "" && !seen[ns_key]++) {
+                    print ns
                 }
             }
         }
     ' "$file"
 }
 
-compact_value() {
-    tr -d '[:space:]'
-}
-
-return_value_or_null() {
-    local value="$1"
-
-    if [ -n "$value" ]; then
-        echo "$value"
-    else
-        print_null
-    fi
-}
-
-return_dns_value_or_empty() {
-    local value="$1"
-
-    if [ -n "$value" ]; then
-        echo "$value"
-    else
-        print_empty
-    fi
-}
-
-extract_created_number() {
-    local value="$1"
-
-    if [[ "$value" == *"#"* ]]; then
-        echo "$value" | cut -d'#' -f2 | compact_value
-    else
-        print_null
-    fi
-}
-
-get_expiration_value() {
-    local file="$1"
-    local value
-
-    value="$(first_field "expires" "$file")"
-
-    if [ -z "$value" ]; then
-        value="$(first_field "Registry Expiry Date" "$file")"
-    fi
-
-    if [ -z "$value" ]; then
-        value="$(first_field "Expiration Date" "$file")"
-    fi
-
-    if [ -z "$value" ]; then
-        value="$(first_field "paid-till" "$file")"
-    fi
-
-    echo "$value" | compact_value
-}
-
-get_domain_info() {
+get_domain_data_json() {
     local domain="$1"
-    local attr="$2"
-    local value
-    local created_line
+    local cache_file="$2"
 
-    prepare_base_cache
-    prepare_cache_paths "$domain"
+    local nome
+    local status
+    local dono
+    local donocnpj
+    local dononome
+    local pais
+    local donoregistro
+    local suporteregistro
+    local dns1
+    local dns2
+    local dns3
+    local dns4
+    local criado_raw
+    local criado
+    local criadonumero
+    local alterado_raw
+    local alterado
+    local expira_raw
+    local expira
 
-    if ! cache_is_valid; then
-        refresh_cache_if_needed "$domain" >/dev/null 2>&1 || true
-    fi
+    local ns_list
 
-    if [ ! -s "$CACHE_FILE" ]; then
-        print_null
-        return 0
-    fi
+    nome="$(get_first_of_fields "$cache_file" "domain" "Domain Name")"
+    nome="$(field_or_vazio "${nome:-$domain}")"
 
-    case "$attr" in
-        nome)
-            value="$(first_field "domain" "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(first_field "Domain Name" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
+    status="$(get_first_of_fields "$cache_file" "status" "Domain Status")"
+    status="$(field_or_vazio "$status")"
 
-        status)
-            value="$(last_field "status" "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(first_field "Domain Status" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
+    dono="$(get_first_of_fields "$cache_file" "owner" "Registrant Organization" "Registrant")"
+    dono="$(field_or_vazio "$dono")"
 
-        dono)
-            value="$(first_field "owner" "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(first_field "Registrant Organization" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
+    donocnpj="$(get_first_of_fields "$cache_file" "ownerid" "Registry Registrant ID" "Registrant ID")"
+    donocnpj="$(field_or_vazio "$donocnpj")"
 
-        donocnpj)
-            value="$(first_field "ownerid" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
+    dononome="$(get_first_of_fields "$cache_file" "responsible" "Registrant Name")"
+    dononome="$(field_or_vazio "$dononome")"
 
-        dononome)
-            value="$(first_field "responsible" "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(first_field "Registrant Name" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
+    pais="$(get_first_of_fields "$cache_file" "country" "Registrant Country")"
+    pais="$(field_or_vazio "$pais")"
 
-        pais)
-            value="$(first_field "country" "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(first_field "Registrant Country" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
+    donoregistro="$(get_first_of_fields "$cache_file" "owner-c" "Registrant Contact")"
+    donoregistro="$(field_or_vazio "$donoregistro")"
 
-        donoregistro)
-            value="$(first_field "owner-c" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
+    suporteregistro="$(get_first_of_fields "$cache_file" "tech-c" "Tech Contact")"
+    suporteregistro="$(field_or_vazio "$suporteregistro")"
 
-        suporteregistro)
-            value="$(first_field "tech-c" "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(first_field "Tech Name" "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
+    mapfile -t ns_list < <(get_name_servers "$cache_file")
 
-        dns1)
-            value="$(nth_field "nserver" 1 "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(nth_field "Name Server" 1 "$CACHE_FILE")"
-            return_dns_value_or_empty "$value"
-            ;;
+    dns1="$(field_or_vazio "${ns_list[0]}")"
+    dns2="$(field_or_vazio "${ns_list[1]}")"
+    dns3="$(field_or_vazio "${ns_list[2]}")"
+    dns4="$(field_or_vazio "${ns_list[3]}")"
 
-        dns2)
-            value="$(nth_field "nserver" 2 "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(nth_field "Name Server" 2 "$CACHE_FILE")"
-            return_dns_value_or_empty "$value"
-            ;;
+    criado_raw="$(get_first_of_fields "$cache_file" "created" "Creation Date" "Created On")"
+    criado="$(extract_date_value "$criado_raw")"
+    criadonumero="$(extract_created_number "$criado_raw")"
 
-        dns3)
-            value="$(nth_field "nserver" 3 "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(nth_field "Name Server" 3 "$CACHE_FILE")"
-            return_dns_value_or_empty "$value"
-            ;;
+    alterado_raw="$(get_first_of_fields "$cache_file" "changed" "Updated Date" "Last Updated On")"
+    alterado="$(extract_date_value "$alterado_raw")"
 
-        dns4)
-            value="$(nth_field "nserver" 4 "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(nth_field "Name Server" 4 "$CACHE_FILE")"
-            return_dns_value_or_empty "$value"
-            ;;
+    expira_raw="$(get_first_of_fields "$cache_file" "expires" "Registry Expiry Date" "Registrar Registration Expiration Date" "Expiration Date")"
+    expira="$(extract_date_value "$expira_raw")"
 
-        criado)
-            created_line="$(first_field "created" "$CACHE_FILE")"
-            [ -z "$created_line" ] && created_line="$(first_field "Creation Date" "$CACHE_FILE")"
-
-            if [ -n "$created_line" ]; then
-                echo "$created_line" | cut -d'#' -f1 | compact_value
-            else
-                print_null
-            fi
-            ;;
-
-        criadonumero)
-            created_line="$(first_field "created" "$CACHE_FILE")"
-            extract_created_number "$created_line"
-            ;;
-
-        alterado)
-            value="$(first_field "changed" "$CACHE_FILE")"
-            [ -z "$value" ] && value="$(first_field "Updated Date" "$CACHE_FILE")"
-
-            if [ -n "$value" ]; then
-                echo "$value" | compact_value
-            else
-                print_null
-            fi
-            ;;
-
-        expira)
-            value="$(get_expiration_value "$CACHE_FILE")"
-            return_value_or_null "$value"
-            ;;
-
-        *)
-            print_null
-            ;;
-    esac
+    printf '{'
+    printf '"nome":"%s",' "$(json_escape "$nome")"
+    printf '"status":"%s",' "$(json_escape "$status")"
+    printf '"dono":"%s",' "$(json_escape "$dono")"
+    printf '"donocnpj":"%s",' "$(json_escape "$donocnpj")"
+    printf '"dononome":"%s",' "$(json_escape "$dononome")"
+    printf '"pais":"%s",' "$(json_escape "$pais")"
+    printf '"donoregistro":"%s",' "$(json_escape "$donoregistro")"
+    printf '"suporteregistro":"%s",' "$(json_escape "$suporteregistro")"
+    printf '"dns1":"%s",' "$(json_escape "$dns1")"
+    printf '"dns2":"%s",' "$(json_escape "$dns2")"
+    printf '"dns3":"%s",' "$(json_escape "$dns3")"
+    printf '"dns4":"%s",' "$(json_escape "$dns4")"
+    printf '"criado":"%s",' "$(json_escape "$criado")"
+    printf '"criadonumero":"%s",' "$(json_escape "$criadonumero")"
+    printf '"alterado":"%s",' "$(json_escape "$alterado")"
+    printf '"expira":"%s"' "$(json_escape "$expira")"
+    printf '}\n'
 }
 
-check_domain() {
-    local attr
+main() {
+    local metric="$1"
+    local raw_domain="$2"
     local domain
+    local cache_file
 
-    attr="$1"
-    domain="$(normalize_domain "$2")"
-
-    if [ -z "$attr" ] || [ -z "$domain" ]; then
+    if [ -z "$metric" ] || [ -z "$raw_domain" ]; then
         print_null
         return 0
     fi
 
-    if ! domain_exists "$domain"; then
+    if ! validate_metric "$metric"; then
         print_null
         return 0
     fi
 
-    get_domain_info "$domain" "$attr"
+    domain="$(normalize_domain "$raw_domain")"
+
+    if [ -z "$domain" ]; then
+        print_null
+        return 0
+    fi
+
+    if ! is_valid_domain "$domain"; then
+        print_null
+        return 0
+    fi
+
+    if ! ensure_cache_dir; then
+        print_null
+        return 0
+    fi
+
+    if ! refresh_cache "$domain"; then
+        print_null
+        return 0
+    fi
+
+    cache_file="$(cache_path "$domain")"
+
+    if ! whois_has_domain_data "$cache_file"; then
+        print_null
+        return 0
+    fi
+
+    get_domain_data_json "$domain" "$cache_file"
+
+    return 0
 }
 
-if ! validate_metric "$METRIC"; then
-    print_null
-    exit 0
-fi
-
-check_domain "$METRIC" "$DOMAIN"
+main "$@"
