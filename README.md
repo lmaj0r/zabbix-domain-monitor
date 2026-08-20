@@ -1,33 +1,37 @@
 # zabbix-domain-monitor
 
-Monitoramento de domínios via WHOIS para integração com Zabbix, com cache local, rate limit global e enfileiramento automático de consultas simultâneas.
+Monitoramento de domínios via WHOIS para integração com Zabbix, com cache local, rate limit global, controle de concorrência e retorno padronizado em JSON para uso com item master e itens dependentes no Zabbix.
 
-O projeto foi desenvolvido em **Bash** e utiliza ferramentas nativas do Linux, como `whois` e `flock`, para consultar informações WHOIS de domínios de forma controlada, evitando excesso de requisições, reduzindo risco de bloqueios externos e prevenindo timeouts no Zabbix.
+O projeto foi desenvolvido em **Bash** e utiliza ferramentas nativas do Linux, como `whois`, `flock`, `timeout`, `sha256sum`, `awk`, `sed` e `grep`, para consultar informações WHOIS de domínios de forma controlada, reduzindo consultas repetidas, evitando excesso de requisições externas e prevenindo timeouts no Zabbix.
 
 ---
 
 ## Funcionalidades
 
 - Monitoramento de informações WHOIS de domínios.
+- Retorno consolidado em JSON por meio de um item master.
 - Compatível com domínios `.br` consultados via Registro.br.
-- Compatível com diversos domínios internacionais, conforme disponibilidade dos campos WHOIS.
-- Cache local com TTL de 5 minutos.
-- Cache armazenado em:
+- Compatível com domínios `.com` e diversos domínios internacionais, conforme disponibilidade dos campos WHOIS.
+- Cache local com TTL padrão de 24 horas.
+- Cache armazenado por padrão em:
 
 ```text
-/tmp/zabbix_domain_cache
+/var/tmp/zabbix_domain_monitor
 ```
 
-- Organização do cache por TLD.
-- Rate limit global de 5 segundos entre consultas WHOIS.
-- Enfileiramento automático com `flock`.
+- Cache individual por domínio usando hash do nome do domínio.
+- Rate limit global entre consultas WHOIS.
+- Controle de concorrência com `flock`, quando disponível.
 - Prevenção de consultas simultâneas para o mesmo domínio.
-- Prevenção de timeout ao processar múltiplos domínios simultaneamente.
-- Retorno padronizado como `null` quando uma informação não está disponível.
+- Prevenção de excesso de consultas externas para diferentes domínios.
+- Timeout configurável para consultas WHOIS.
+- Normalização automática de domínio informado.
+- Validação de domínio antes da consulta.
+- Retorno padronizado como `null` quando o domínio é inválido, não encontrado ou sem dados válidos.
 - Compatível com Zabbix Agent legado.
 - Compatível com Zabbix Agent 2.
-- Instalador automático.
 - Template YAML para importação no Zabbix 7.0.
+- Estrutura preparada para item master e itens dependentes.
 
 ---
 
@@ -38,15 +42,17 @@ O projeto foi desenvolvido em **Bash** e utiliza ferramentas nativas do Linux, c
 - Git
 - `whois`
 - `flock`, disponível no pacote `util-linux`
+- `timeout`, normalmente disponível no pacote `coreutils`
+- `sha256sum`, normalmente disponível no pacote `coreutils`
 - Zabbix Agent ou Zabbix Agent 2
 
 ---
 
 ## Instalação
 
-Efetue a instalação no servidor onde está o Zabbix Agent.
+Efetue a instalação no servidor onde está o Zabbix Agent ou Zabbix Agent 2.
 
-Clone o repositório
+Clone o repositório:
 
 ```bash
 git clone https://github.com/lmaj0r/zabbix-domain-monitor.git
@@ -58,6 +64,8 @@ Acesse o diretório do projeto:
 cd zabbix-domain-monitor
 ```
 
+Dê permissão de execução ao instalador:
+
 ```bash
 sudo chmod +x install.sh
 ```
@@ -68,29 +76,51 @@ Execute o instalador:
 sudo ./install.sh
 ```
 
-O instalador realiza automaticamente as seguintes ações:
+O instalador deve realizar as seguintes ações:
 
-1. Verifica permissões de execução como root.
-2. Verifica os arquivos obrigatórios do projeto.
-3. Identifica arquivos existentes e pergunta se devem ser atualizados.
-4. Verifica dependências obrigatórias.
-5. Instala dependências quando possível.
-6. Copia o script principal para:
+1. Verificar permissões de execução como root.
+2. Verificar os arquivos obrigatórios do projeto.
+3. Verificar dependências obrigatórias.
+4. Instalar dependências quando possível.
+5. Copiar o script principal para:
 
 ```text
 /etc/zabbix/scripts/zabbix_domain_monitor.sh
 ```
 
-7. Ajusta permissões de execução.
-8. Cria o diretório de cache:
+6. Ajustar permissões de execução do script.
+7. Copiar o arquivo `userparameter_domain.conf` para o diretório do Zabbix Agent ou Zabbix Agent 2.
+8. Reiniciar o serviço do Zabbix Agent ou Zabbix Agent 2, quando disponível.
+
+---
+
+## Arquivo UserParameter
+
+O arquivo de UserParameter utilizado pelo projeto é:
 
 ```text
-/tmp/zabbix_domain_cache
+zabbix_agentd.d/userparameter_domain.conf
 ```
 
-9. Ajusta permissões do cache.
-10. Copia o arquivo `userparameter_domain.conf` para o diretório do Zabbix Agent ou Zabbix Agent 2.
-11. Reinicia o serviço do Zabbix Agent ou Zabbix Agent 2, quando disponível.
+Conteúdo principal:
+
+```ini
+UserParameter=domain.dados[*],/usr/bin/env bash /etc/zabbix/scripts/zabbix_domain_monitor.sh dados "\$1"
+```
+
+Esse UserParameter cria a chave master:
+
+```text
+domain.dados[dominio]
+```
+
+Exemplo:
+
+```text
+domain.dados[empresa.com.br]
+```
+
+O script retorna um JSON com todos os dados disponíveis do domínio. Os demais campos devem ser extraídos no Zabbix por itens dependentes usando JSONPath.
 
 ---
 
@@ -99,35 +129,45 @@ O instalador realiza automaticamente as seguintes ações:
 O script principal recebe dois parâmetros:
 
 ```bash
-zabbix_domain_monitor.sh <atributo> <dominio>
+zabbix_domain_monitor.sh dados <dominio>
 ```
 
-Exemplo consultando a data de expiração:
+Exemplo:
 
 ```bash
-/etc/zabbix/scripts/zabbix_domain_monitor.sh expira empresa.com.br
+/etc/zabbix/scripts/zabbix_domain_monitor.sh dados empresa.com.br
 ```
 
-Exemplo consultando o status do domínio:
+Exemplo com domínio `.com`:
 
 ```bash
-/etc/zabbix/scripts/zabbix_domain_monitor.sh status empresa.com.br
+/etc/zabbix/scripts/zabbix_domain_monitor.sh dados example.com
 ```
 
-Exemplo consultando servidores DNS:
+Quando o domínio é válido e possui dados WHOIS disponíveis, o retorno será um JSON semelhante a:
 
-```bash
-/etc/zabbix/scripts/zabbix_domain_monitor.sh dns1 empresa.com.br
-/etc/zabbix/scripts/zabbix_domain_monitor.sh dns2 empresa.com.br
+```json
+{
+  "nome": "empresa.com.br",
+  "status": "published",
+  "dono": "Empresa Exemplo LTDA",
+  "donocnpj": "00.000.000/0001-00",
+  "dononome": "Responsável Técnico",
+  "pais": "BR",
+  "donoregistro": "ABC123",
+  "suporteregistro": "ABC123",
+  "dns1": "ns1.empresa.com.br",
+  "dns2": "ns2.empresa.com.br",
+  "dns3": "Vazio",
+  "dns4": "Vazio",
+  "criado": "20200101",
+  "criadonumero": "12345678",
+  "alterado": "20240101",
+  "expira": "20270101"
+}
 ```
 
-Exemplo consultando o proprietário do domínio:
-
-```bash
-/etc/zabbix/scripts/zabbix_domain_monitor.sh dono empresa.com.br
-```
-
-Quando uma informação não é encontrada, o script retorna:
+Quando o domínio é inválido, não encontrado ou não possui dados WHOIS válidos, o script retorna:
 
 ```text
 null
@@ -137,63 +177,101 @@ null
 
 ## Uso com Zabbix Agent
 
-Este projeto utiliza UserParameters no seguinte padrão:
+Este projeto utiliza um item master no seguinte padrão:
 
 ```text
-domain.<atributo>[dominio]
+domain.dados[dominio]
 ```
 
-Exemplos:
+Exemplo:
 
 ```text
-domain.expira[empresa.com.br]
-domain.status[empresa.com.br]
-domain.dono[empresa.com.br]
-domain.dns1[empresa.com.br]
+domain.dados[empresa.com.br]
 ```
 
 Teste com Zabbix Agent legado:
 
 ```bash
-zabbix_agentd -t 'domain.expira[empresa.com.br]'
+zabbix_agentd -t 'domain.dados[empresa.com.br]'
 ```
 
 Teste com Zabbix Agent 2:
 
 ```bash
-zabbix_agent2 -t 'domain.expira[empresa.com.br]'
+zabbix_agent2 -t 'domain.dados[empresa.com.br]'
 ```
 
-Outros exemplos de teste:
+Exemplo usando a macro do template:
 
 ```bash
-zabbix_agentd -t 'domain.status[empresa.com.br]'
-zabbix_agentd -t 'domain.dns1[empresa.com.br]'
-zabbix_agentd -t 'domain.criado[empresa.com.br]'
+zabbix_agent2 -t 'domain.dados[bernoulli.com.br]'
 ```
 
 ---
 
-## Métricas disponíveis
+## Métrica disponível no UserParameter
 
-| Chave Zabbix | Atributo interno | Descrição |
+| Chave Zabbix | Parâmetro interno | Descrição |
 |---|---|---|
-| `domain.nome[dominio]` | `nome` | Nome do domínio |
-| `domain.status[dominio]` | `status` | Status do domínio |
-| `domain.dono[dominio]` | `dono` | Proprietário ou razão social |
-| `domain.donocnpj[dominio]` | `donocnpj` | Identificador do proprietário, quando disponível |
-| `domain.dononome[dominio]` | `dononome` | Nome do responsável pelo domínio |
-| `domain.pais[dominio]` | `pais` | País do registro |
-| `domain.donoregistro[dominio]` | `donoregistro` | Código de contato do proprietário |
-| `domain.suporteregistro[dominio]` | `suporteregistro` | Código de contato técnico |
-| `domain.dns1[dominio]` | `dns1` | Primeiro servidor DNS |
-| `domain.dns2[dominio]` | `dns2` | Segundo servidor DNS |
-| `domain.dns3[dominio]` | `dns3` | Terceiro servidor DNS |
-| `domain.dns4[dominio]` | `dns4` | Quarto servidor DNS |
-| `domain.criado[dominio]` | `criado` | Data de criação do domínio |
-| `domain.criadonumero[dominio]` | `criadonumero` | Número associado ao campo de criação, quando disponível |
-| `domain.alterado[dominio]` | `alterado` | Data da última alteração |
-| `domain.expira[dominio]` | `expira` | Data de expiração do domínio |
+| `domain.dados[dominio]` | `dados` | Retorna todos os dados WHOIS do domínio em JSON |
+
+---
+
+## Campos retornados no JSON
+
+O item master `domain.dados[dominio]` retorna os seguintes campos:
+
+| Campo JSON | Descrição |
+|---|---|
+| `nome` | Nome do domínio |
+| `status` | Status do domínio |
+| `dono` | Proprietário, razão social ou identificador disponível |
+| `donocnpj` | Identificador do proprietário, quando disponível |
+| `dononome` | Nome do responsável pelo domínio |
+| `pais` | País do registro |
+| `donoregistro` | Código de contato do proprietário |
+| `suporteregistro` | Código de contato técnico |
+| `dns1` | Primeiro servidor DNS |
+| `dns2` | Segundo servidor DNS |
+| `dns3` | Terceiro servidor DNS |
+| `dns4` | Quarto servidor DNS |
+| `criado` | Data de criação do domínio |
+| `criadonumero` | Número associado ao campo de criação, quando disponível |
+| `alterado` | Data da última alteração |
+| `expira` | Data de expiração do domínio |
+
+---
+
+## Itens dependentes no Zabbix
+
+O template do Zabbix utiliza o item master:
+
+```text
+domain.dados[{$DOMINIO.NOME}]
+```
+
+A partir dele, os demais campos são extraídos por itens dependentes usando JSONPath.
+
+Exemplos:
+
+| Item dependente | JSONPath |
+|---|---|
+| `domain.nome[{$DOMINIO.NOME}]` | `$.nome` |
+| `domain.status[{$DOMINIO.NOME}]` | `$.status` |
+| `domain.dono[{$DOMINIO.NOME}]` | `$.dono` |
+| `domain.donocnpj[{$DOMINIO.NOME}]` | `$.donocnpj` |
+| `domain.dononome[{$DOMINIO.NOME}]` | `$.dononome` |
+| `domain.pais[{$DOMINIO.NOME}]` | `$.pais` |
+| `domain.donoregistro[{$DOMINIO.NOME}]` | `$.donoregistro` |
+| `domain.suporteregistro[{$DOMINIO.NOME}]` | `$.suporteregistro` |
+| `domain.dns1[{$DOMINIO.NOME}]` | `$.dns1` |
+| `domain.dns2[{$DOMINIO.NOME}]` | `$.dns2` |
+| `domain.dns3[{$DOMINIO.NOME}]` | `$.dns3` |
+| `domain.dns4[{$DOMINIO.NOME}]` | `$.dns4` |
+| `domain.criado[{$DOMINIO.NOME}]` | `$.criado` |
+| `domain.criadonumero[{$DOMINIO.NOME}]` | `$.criadonumero` |
+| `domain.alterado[{$DOMINIO.NOME}]` | `$.alterado` |
+| `domain.expira[{$DOMINIO.NOME}]` | `$.expira` |
 
 ---
 
@@ -222,19 +300,59 @@ Exemplos de campos genéricos utilizados como fallback:
 
 ```text
 Domain Name
+Registry Domain ID
 Registrant Organization
+Registrant
 Registrant Name
 Registrant Country
+Registry Registrant ID
+Registrant ID
+Registrant Contact
+Tech Contact
 Name Server
 Creation Date
+Created On
 Updated Date
+Last Updated On
 Registry Expiry Date
+Registrar Registration Expiration Date
 Expiration Date
-paid-till
 Domain Status
 ```
 
 A disponibilidade dos dados depende da resposta WHOIS de cada registrador.
+
+---
+
+## Suporte a domínios `.com`
+
+Para domínios `.com`, o script utiliza um tratamento específico.
+
+Campos normalmente extraídos:
+
+| Campo JSON | Origem WHOIS comum |
+|---|---|
+| `nome` | `Domain Name` |
+| `dono` | `Registry Domain ID` |
+| `criado` | `Creation Date` |
+| `alterado` | `Updated Date` |
+| `expira` | `Registry Expiry Date` |
+| `dns1` | `Name Server` |
+| `dns2` | `Name Server` |
+
+Alguns campos podem retornar `"Não Suportado"` para domínios `.com`, pois nem todos os registradores disponibilizam dados completos de proprietário/responsável na saída WHOIS pública.
+
+Exemplos de campos que podem retornar `"Não Suportado"`:
+
+```text
+status
+donocnpj
+dononome
+pais
+donoregistro
+suporteregistro
+criadonumero
+```
 
 ---
 
@@ -253,7 +371,7 @@ Ele deve ser baixado separadamente e importado diretamente pela interface web do
 Template incluído:
 
 ```text
-Monitor de Dominios
+BERNOULLI - Monitor de Dominios
 ```
 
 ### Como baixar o template
@@ -328,19 +446,22 @@ O script utiliza cache local para evitar consultas WHOIS repetidas.
 Diretório padrão:
 
 ```text
-/tmp/zabbix_domain_cache
+/var/tmp/zabbix_domain_monitor
 ```
 
-O cache é organizado por TLD.
+O cache de cada domínio é salvo em arquivo próprio, usando uma chave baseada em hash SHA-256 do domínio.
 
-Exemplo:
+Exemplo de arquivo de cache:
 
 ```text
-/tmp/zabbix_domain_cache/br/empresa.com.br
-/tmp/zabbix_domain_cache/com/example.com
+/var/tmp/zabbix_domain_monitor/1b9f2c9b6d1f4b7a7d9e9f0d3c2a1b0e.whois
 ```
 
-O TTL padrão do cache é de 5 minutos.
+O TTL padrão do cache é de 24 horas, equivalente a:
+
+```text
+86400 segundos
+```
 
 Enquanto o cache estiver válido, novas consultas para o mesmo domínio reutilizam o arquivo local, evitando nova consulta WHOIS externa.
 
@@ -348,27 +469,28 @@ Enquanto o cache estiver válido, novas consultas para o mesmo domínio reutiliz
 
 ## Rate limit
 
-Para evitar bloqueios por excesso de consultas WHOIS, o projeto aplica um rate limit global de 5 segundos entre consultas.
+Para evitar bloqueios por excesso de consultas WHOIS, o projeto aplica um rate limit global entre consultas externas.
 
-O controle é feito por lock global em:
-
-```text
-/tmp/zabbix_domain_cache/.ratelimit_lock
-```
-
-E por controle de tempo em:
+Valor padrão:
 
 ```text
-/tmp/zabbix_domain_cache/.ratelimit_timer
+2 segundos
 ```
 
-Esse controle é global para o script, ou seja, mesmo consultas para domínios diferentes respeitam o intervalo mínimo configurado.
+O controle global utiliza os seguintes arquivos:
+
+```text
+/var/tmp/zabbix_domain_monitor/.global_whois.lock
+/var/tmp/zabbix_domain_monitor/.last_whois
+```
+
+Esse controle é global para o script. Ou seja, mesmo consultas para domínios diferentes respeitam o intervalo mínimo configurado quando houver necessidade de executar nova consulta WHOIS externa.
 
 ---
 
 ## Enfileiramento automático
 
-Quando vários domínios são consultados ao mesmo tempo e o cache está expirado, as consultas são enfileiradas automaticamente com `flock`.
+Quando vários domínios são consultados ao mesmo tempo e o cache está expirado, as consultas são controladas automaticamente com `flock`, quando disponível.
 
 Isso evita:
 
@@ -377,26 +499,44 @@ Isso evita:
 - Bloqueio por rate limit externo.
 - Timeouts em massa no Zabbix Agent.
 - Consultas duplicadas para o mesmo domínio.
+- Atualização simultânea do mesmo arquivo de cache.
 
-O script também utiliza lock específico por domínio para impedir que múltiplas execuções atualizem o mesmo cache ao mesmo tempo.
+O script utiliza dois níveis de controle:
+
+1. Lock global para rate limit entre consultas WHOIS.
+2. Lock específico por domínio para impedir múltiplas atualizações simultâneas do mesmo cache.
 
 ---
 
-## Validação de domínio
+## Validação e normalização de domínio
 
-O script valida o domínio antes da consulta.
+Antes da consulta, o domínio informado é normalizado.
 
-São rejeitados domínios:
+Exemplos de entradas aceitas:
+
+```text
+https://empresa.com.br
+http://empresa.com.br
+empresa.com.br/
+empresa.com.br:443
+EMPRESA.COM.BR
+```
+
+Após normalização:
+
+```text
+empresa.com.br
+```
+
+O script rejeita domínios:
 
 - Vazios.
-- Com mais de 253 caracteres.
 - Sem ponto.
-- Começando com ponto.
-- Terminando com ponto.
 - Com caracteres inválidos.
 - Com labels maiores que 63 caracteres.
 - Com labels começando com hífen.
 - Com labels terminando com hífen.
+- Fora do padrão esperado para nomes de domínio.
 
 Quando o domínio é inválido, o script retorna:
 
@@ -410,9 +550,39 @@ null
 
 O script utiliza timeout para limitar o tempo de execução da consulta WHOIS quando o comando `timeout` está disponível no sistema.
 
-O tempo padrão configurado no script é de 25 segundos.
+Tempo padrão:
+
+```text
+20 segundos
+```
 
 Caso o comando `timeout` não esteja disponível, o script executa o `whois` diretamente.
+
+---
+
+## Variáveis de ambiente
+
+O comportamento do script pode ser ajustado por variáveis de ambiente.
+
+| Variável | Valor padrão | Descrição |
+|---|---:|---|
+| `ZBX_DOMAIN_CACHE_DIR` | `/var/tmp/zabbix_domain_monitor` | Diretório de cache |
+| `ZBX_DOMAIN_CACHE_TTL_SECONDS` | `86400` | TTL do cache em segundos |
+| `ZBX_DOMAIN_WHOIS_TIMEOUT_SECONDS` | `20` | Timeout da consulta WHOIS |
+| `ZBX_DOMAIN_LOCK_TIMEOUT_SECONDS` | `20` | Tempo máximo de espera por lock |
+| `ZBX_DOMAIN_RATE_LIMIT_SECONDS` | `2` | Intervalo mínimo entre consultas WHOIS externas |
+
+Exemplo de execução manual alterando o TTL do cache para 5 minutos:
+
+```bash
+ZBX_DOMAIN_CACHE_TTL_SECONDS=300 /etc/zabbix/scripts/zabbix_domain_monitor.sh dados empresa.com.br
+```
+
+Exemplo alterando o diretório de cache:
+
+```bash
+ZBX_DOMAIN_CACHE_DIR=/tmp/zabbix_domain_cache /etc/zabbix/scripts/zabbix_domain_monitor.sh dados empresa.com.br
+```
 
 ---
 
@@ -428,8 +598,6 @@ zabbix-domain-monitor/
 └── zabbix_template/
     └── template_domain_monitor.yaml
 ```
-
-> Observação: usando o método de instalação com `sparse-checkout`, a pasta `zabbix_template` não será baixada no servidor. Ela permanece disponível no GitHub apenas para download e importação manual no Zabbix.
 
 ---
 
@@ -447,19 +615,41 @@ zabbix-domain-monitor/
 
 ## Teste de concorrência
 
-Para validar o enfileiramento e o rate limit:
+Para validar o enfileiramento, o cache e o rate limit:
 
 ```bash
 for d in empresa.com.br exemplo.com.br registro.br zabbix.com google.com; do
-  /etc/zabbix/scripts/zabbix_domain_monitor.sh expira "$d" &
+  /etc/zabbix/scripts/zabbix_domain_monitor.sh dados "$d" &
 done
 
 wait
 ```
 
-As consultas devem ser serializadas pelo lock global, respeitando o intervalo mínimo de 5 segundos entre execuções WHOIS quando houver necessidade de consulta externa.
+As consultas externas devem respeitar o lock global e o intervalo mínimo configurado.
 
 Se os domínios já estiverem em cache válido, as respostas poderão retornar rapidamente sem nova consulta WHOIS.
+
+---
+
+## Teste pelo Zabbix Agent
+
+Zabbix Agent legado:
+
+```bash
+zabbix_agentd -t 'domain.dados[empresa.com.br]'
+```
+
+Zabbix Agent 2:
+
+```bash
+zabbix_agent2 -t 'domain.dados[empresa.com.br]'
+```
+
+O retorno esperado é semelhante a:
+
+```text
+domain.dados[empresa.com.br] [t|{"nome":"empresa.com.br","status":"published","dono":"...","donocnpj":"...","dononome":"...","pais":"BR","donoregistro":"...","suporteregistro":"...","dns1":"...","dns2":"...","dns3":"Vazio","dns4":"Vazio","criado":"20200101","criadonumero":"...","alterado":"20240101","expira":"20270101"}]
+```
 
 ---
 
@@ -508,10 +698,22 @@ sudo rm -f /etc/zabbix/zabbix_agent2.d/userparameter_domain.conf
 Opcionalmente, remova o cache local:
 
 ```bash
-sudo rm -rf /tmp/zabbix_domain_cache
+sudo rm -rf /var/tmp/zabbix_domain_monitor
 ```
 
 Depois reinicie o agente Zabbix utilizado no ambiente.
+
+Zabbix Agent legado:
+
+```bash
+sudo systemctl restart zabbix-agent
+```
+
+Zabbix Agent 2:
+
+```bash
+sudo systemctl restart zabbix-agent2
+```
 
 ---
 
