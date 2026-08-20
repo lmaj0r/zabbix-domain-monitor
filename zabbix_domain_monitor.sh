@@ -32,7 +32,6 @@ RATE_LIMIT_SECONDS="${ZBX_DOMAIN_RATE_LIMIT_SECONDS:-2}"
 GLOBAL_LOCK_FILE="${CACHE_DIR}/.global_whois.lock"
 LAST_WHOIS_FILE="${CACHE_DIR}/.last_whois"
 
-
 print_null() {
     echo "null"
 }
@@ -43,9 +42,7 @@ print_vazio() {
 
 ensure_cache_dir() {
     mkdir -p "$CACHE_DIR" 2>/dev/null || return 1
-
     chmod 0777 "$CACHE_DIR" 2>/dev/null || true
-
     return 0
 }
 
@@ -93,7 +90,6 @@ cache_is_valid() {
     [ "$age" -lt "$CACHE_TTL_SECONDS" ]
 }
 
-
 normalize_domain() {
     local domain="$1"
 
@@ -101,7 +97,6 @@ normalize_domain() {
 
     domain="${domain#http://}"
     domain="${domain#https://}"
-
     domain="${domain%%/*}"
     domain="${domain%%\?*}"
     domain="${domain%%:*}"
@@ -118,6 +113,12 @@ is_valid_domain() {
     [[ "$domain" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$ ]]
 }
 
+is_com_domain() {
+    local domain="$1"
+
+    [[ "$domain" =~ \.com$ ]]
+}
+
 validate_metric() {
     local metric="$1"
 
@@ -130,7 +131,6 @@ validate_metric() {
             ;;
     esac
 }
-
 
 apply_rate_limit_locked() {
     local now
@@ -240,6 +240,12 @@ whois_has_domain_data() {
 
     if grep -Eiq 'no match for|not found|no data found|no entries found|object does not exist|domain not found|status:[[:space:]]*free' "$cache_file"; then
         return 1
+    fi
+
+    if grep -Eiq 'rate limit exceeded|query rate limit exceeded|too many requests' "$cache_file"; then
+        if ! grep -Eiq '^[[:space:]]*(domain|domain name)[[:space:]]*:' "$cache_file"; then
+            return 1
+        fi
     fi
 
     return 0
@@ -364,6 +370,52 @@ get_first_of_fields() {
     return 1
 }
 
+get_status_values() {
+    local file="$1"
+
+    awk '
+        {
+            line = $0
+            sub(/\r$/, "", line)
+
+            pos = index(line, ":")
+            if (pos <= 0) {
+                next
+            }
+
+            field = substr(line, 1, pos - 1)
+            value = substr(line, pos + 1)
+
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", field)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+
+            field_lower = tolower(field)
+
+            if ((field_lower == "status" || field_lower == "domain status") && value != "") {
+                split(value, parts, /[[:space:]]+/)
+
+                if (field_lower == "domain status") {
+                    value = parts[1]
+                }
+
+                if (value != "" && !seen[value]++) {
+                    if (out == "") {
+                        out = value
+                    } else {
+                        out = out " | " value
+                    }
+                }
+            }
+        }
+
+        END {
+            if (out != "") {
+                print out
+            }
+        }
+    ' "$file"
+}
+
 get_name_servers() {
     local file="$1"
 
@@ -429,8 +481,9 @@ get_domain_data_json() {
 
     nome="$(get_first_of_fields "$cache_file" "domain" "Domain Name")"
     nome="$(field_or_vazio "${nome:-$domain}")"
+    nome="$(printf '%s' "$nome" | tr '[:upper:]' '[:lower:]')"
 
-    status="$(get_first_of_fields "$cache_file" "status" "Domain Status")"
+    status="$(get_status_values "$cache_file")"
     status="$(field_or_vazio "$status")"
 
     dono="$(get_first_of_fields "$cache_file" "owner" "Registrant Organization" "Registrant")"
@@ -446,9 +499,19 @@ get_domain_data_json() {
     pais="$(field_or_vazio "$pais")"
 
     donoregistro="$(get_first_of_fields "$cache_file" "owner-c" "Registrant Contact")"
+
+    if [ -z "$donoregistro" ] && is_com_domain "$domain"; then
+        donoregistro="$(get_first_of_fields "$cache_file" "Registrar")"
+    fi
+
     donoregistro="$(field_or_vazio "$donoregistro")"
 
     suporteregistro="$(get_first_of_fields "$cache_file" "tech-c" "Tech Contact")"
+
+    if [ -z "$suporteregistro" ] && is_com_domain "$domain"; then
+        suporteregistro="$(get_first_of_fields "$cache_file" "Registrar WHOIS Server")"
+    fi
+
     suporteregistro="$(field_or_vazio "$suporteregistro")"
 
     mapfile -t ns_list < <(get_name_servers "$cache_file")
@@ -463,6 +526,11 @@ get_domain_data_json() {
     criadonumero="$(extract_created_number "$criado_raw")"
 
     alterado_raw="$(get_first_of_fields "$cache_file" "changed" "Updated Date" "Last Updated On")"
+
+    if [ -z "$alterado_raw" ] && is_com_domain "$domain"; then
+        alterado_raw="$(get_first_of_fields "$cache_file" "Updated Date")"
+    fi
+
     alterado="$(extract_date_value "$alterado_raw")"
 
     expira_raw="$(get_first_of_fields "$cache_file" "expires" "Registry Expiry Date" "Registrar Registration Expiration Date" "Expiration Date")"
