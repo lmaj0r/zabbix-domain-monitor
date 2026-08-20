@@ -21,8 +21,6 @@
 # |Acesse o projeto em https://github.com/lmaj0r/zabbix-domain-monitor            |
 # +===============================================================================+
 
-#!/usr/bin/env bash
-
 set -o pipefail
 
 CACHE_DIR="${ZBX_DOMAIN_CACHE_DIR:-/var/tmp/zabbix_domain_monitor}"
@@ -44,7 +42,7 @@ print_vazio() {
 
 ensure_cache_dir() {
     mkdir -p "$CACHE_DIR" 2>/dev/null || return 1
-    chmod 0777 "$CACHE_DIR" 2>/dev/null || true
+    chmod 0755 "$CACHE_DIR" 2>/dev/null || true
     return 0
 }
 
@@ -155,7 +153,7 @@ apply_rate_limit_locked() {
     fi
 
     date +%s > "$LAST_WHOIS_FILE" 2>/dev/null || true
-    chmod 0666 "$LAST_WHOIS_FILE" 2>/dev/null || true
+    chmod 0644 "$LAST_WHOIS_FILE" 2>/dev/null || true
 }
 
 apply_rate_limit() {
@@ -206,7 +204,7 @@ refresh_cache_unlocked() {
             return 1
         }
 
-        chmod 0666 "$cache_file" 2>/dev/null || true
+        chmod 0644 "$cache_file" 2>/dev/null || true
         return 0
     fi
 
